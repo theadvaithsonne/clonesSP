@@ -1,0 +1,348 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Rss, Wrench, GraduationCap, ShoppingBag, Wallet, Filter } from "lucide-react";
+import {
+  getStoreChannels,
+  getStorePosts,
+  createPost,
+  likePost,
+  commentOnPost,
+  checkChannelAccess,
+  type Channel,
+  type Post,
+  type Workshop,
+  type Course,
+  type Product,
+} from "@/lib/revenue-network-api";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { AnimatePresence } from "framer-motion";
+import { getToken, getOrgId } from "@/lib/auth";
+import { CreatePostCard, PostCard, ChannelAccessGate } from "./FeedComponents";
+import { toast } from "sonner";
+
+interface ComingSoonPageProps {
+  title: string;
+  icon: React.ReactNode;
+  description?: string;
+}
+
+function ComingSoonPage({ title, icon, description }: ComingSoonPageProps) {
+  return (
+    <div className="h-full w-full flex flex-col items-center justify-center p-8">
+      <div className="flex flex-col items-center gap-6 max-w-md text-center">
+        <div className="w-20 h-20 rounded-full bg-[#1a1a22] border border-[#2a2a35] flex items-center justify-center text-[#FBD10D]">
+          {icon}
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-semibold text-white">{title}</h2>
+          <p className="text-sm text-[#9fa0b8]">
+            {description || "This feature is under development and will be available soon."}
+          </p>
+        </div>
+        <div className="mt-4 px-6 py-3 rounded-lg bg-[#1a1a22] border border-[#2a2a35]">
+          <p className="text-xs text-[#FBD10D] font-medium uppercase tracking-wider">
+            Coming Soon
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Feed Page Component with Channel Filters
+export function FeedPage() {
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(null);
+  const [hasChannelAccess, setHasChannelAccess] = useState(true);
+
+  // Get storeId from org's earngpt_data
+  useEffect(() => {
+    const fetchStoreId = async () => {
+      try {
+        const orgId = getOrgId();
+        const token = getToken();
+
+        if (!orgId) {
+          setError('No organization found');
+          setLoading(false);
+          return;
+        }
+
+        if (!token) {
+          setError('Not authenticated');
+          setLoading(false);
+          return;
+        }
+
+        // Fetch org details to get storeId from earngpt_data
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/org/${orgId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const extractedStoreId = data.org?.earngpt_data?.store?.storeId;
+          if (extractedStoreId) {
+            setStoreId(extractedStoreId);
+          } else {
+            setError('No store associated with this organization');
+          }
+        } else {
+          setError('Failed to fetch organization details');
+        }
+      } catch (err) {
+        console.error('Error fetching store ID:', err);
+        setError('Failed to load store information');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStoreId();
+  }, []);
+
+  // Fetch channels when storeId is available
+  useEffect(() => {
+    if (!storeId) return;
+
+    const fetchChannels = async () => {
+      try {
+        const data = await getStoreChannels(storeId);
+        setChannels(data.channels);
+      } catch (err) {
+        console.error('Error fetching channels:', err);
+        setError('Failed to load channels');
+      }
+    };
+
+    fetchChannels();
+  }, [storeId]);
+
+  // Fetch posts when storeId or selectedChannelId changes
+  useEffect(() => {
+    if (!storeId) return;
+
+    const fetchPosts = async () => {
+      setLoadingPosts(true);
+      try {
+        const data = await getStorePosts(storeId, {
+          channelId: selectedChannelId || undefined,
+          limit: 50,
+        });
+        setPosts(data.posts);
+      } catch (err) {
+        console.error('Error fetching posts:', err);
+        setError('Failed to load posts');
+      } finally {
+        setLoadingPosts(false);
+      }
+    };
+
+    fetchPosts();
+  }, [storeId, selectedChannelId]);
+
+  if (loading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FBD10D]"></div>
+      </div>
+    );
+  }
+
+  if (error && !storeId) {
+    return (
+      <div className="h-full w-full flex items-center justify-center p-8">
+        <div className="text-center space-y-4">
+          <p className="text-red-400">{error}</p>
+          <p className="text-sm text-[#9fa0b8]">Please make sure your organization has a store configured.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full w-full flex flex-col bg-[#0b0b0d]">
+      {/* Header with Channel Filters */}
+      <div className="border-b border-[#2a2a35] bg-[#0e0e12] px-6 py-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Rss className="h-6 w-6 text-[#FBD10D]" />
+            <h1 className="text-xl font-semibold text-white">Feed</h1>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-[#9fa0b8]">
+            <Filter className="h-4 w-4" />
+            <span>Filter by channel</span>
+          </div>
+        </div>
+
+        {/* Channel Filter Pills */}
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedChannelId(null)}
+            className={cn(
+              "rounded-full px-4 py-1 text-sm transition-all",
+              !selectedChannelId
+                ? "bg-[#FBD10D] text-black hover:bg-[#e6c00d]"
+                : "bg-[#1a1a22] text-[#9fa0b8] hover:bg-[#2a2a35] hover:text-white"
+            )}
+          >
+            All Channels
+          </Button>
+          {channels.map((channel) => (
+            <Button
+              key={channel._id}
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedChannelId(channel._id)}
+              className={cn(
+                "rounded-full px-4 py-1 text-sm transition-all whitespace-nowrap",
+                selectedChannelId === channel._id
+                  ? "bg-[#FBD10D] text-black hover:bg-[#e6c00d]"
+                  : "bg-[#1a1a22] text-[#9fa0b8] hover:bg-[#2a2a35] hover:text-white"
+              )}
+            >
+              {channel.title}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Posts Feed */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        {loadingPosts ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FBD10D]"></div>
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Rss className="h-12 w-12 text-[#9fa0b8] mb-4" />
+            <p className="text-[#9fa0b8]">No posts found in this channel</p>
+          </div>
+        ) : (
+          <div className="max-w-2xl mx-auto space-y-4">
+            <AnimatePresence>
+              {posts.map((post) => (
+                <motion.div
+                  key={post._id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="bg-[#0e0e12] border border-[#2a2a35] rounded-lg p-6"
+                >
+                  {/* Post Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#1a1a22] flex items-center justify-center text-[#FBD10D] font-semibold">
+                        {post.authorName.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{post.authorName}</p>
+                        <p className="text-xs text-[#9fa0b8]">
+                          {new Date(post.createdAt).toLocaleDateString()} • {post.channelIds.map(c => c.title).join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Post Content */}
+                  <div className="mb-4">
+                    <p className="text-white whitespace-pre-wrap">{post.content}</p>
+                  </div>
+
+                  {/* Post Attachments */}
+                  {post.attachments && post.attachments.length > 0 && (
+                    <div className="mb-4 grid grid-cols-2 gap-2">
+                      {post.attachments.map((attachment, idx) => (
+                        <div
+                          key={idx}
+                          className="relative rounded-lg overflow-hidden bg-[#1a1a22] border border-[#2a2a35] aspect-video flex items-center justify-center"
+                        >
+                          {attachment.type === 'image' && (
+                            <ImageIcon className="h-8 w-8 text-[#9fa0b8]" />
+                          )}
+                          {attachment.type === 'video' && (
+                            <Video className="h-8 w-8 text-[#9fa0b8]" />
+                          )}
+                          {attachment.type === 'document' && (
+                            <FileText className="h-8 w-8 text-[#9fa0b8]" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Post Actions */}
+                  <div className="flex items-center gap-6 text-[#9fa0b8]">
+                    <button className="flex items-center gap-2 hover:text-red-400 transition-colors">
+                      <Heart className="h-4 w-4" />
+                      <span className="text-sm">{post.likes}</span>
+                    </button>
+                    <button className="flex items-center gap-2 hover:text-blue-400 transition-colors">
+                      <MessageCircle className="h-4 w-4" />
+                      <span className="text-sm">{post.comments}</span>
+                    </button>
+                    <button className="flex items-center gap-2 hover:text-green-400 transition-colors">
+                      <Share2 className="h-4 w-4" />
+                      <span className="text-sm">{post.shares}</span>
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function WorkshopsPage() {
+  return (
+    <ComingSoonPage
+      title="Workshops"
+      icon={<Wrench className="h-10 w-10" />}
+      description="Discover and join hands-on workshops to enhance your skills and knowledge."
+    />
+  );
+}
+
+export function CoursesPage() {
+  return (
+    <ComingSoonPage
+      title="Courses"
+      icon={<GraduationCap className="h-10 w-10" />}
+      description="Access comprehensive courses designed to help you grow professionally."
+    />
+  );
+}
+
+export function ProductsPage() {
+  return (
+    <ComingSoonPage
+      title="Products"
+      icon={<ShoppingBag className="h-10 w-10" />}
+      description="Browse and purchase products available through the revenue network."
+    />
+  );
+}
+
+export function WalletPage() {
+  return (
+    <ComingSoonPage
+      title="Wallet"
+      icon={<Wallet className="h-10 w-10" />}
+      description="Manage your earnings, transactions, and payment methods in one place."
+    />
+  );
+}

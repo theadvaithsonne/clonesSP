@@ -1,0 +1,39 @@
+# `app/api/billing/usage/current-month/route.ts`
+
+> Next.js route handler for `/api/billing/usage/current-month` (GET).
+
+**Kind:** Next.js route handler · **Lines:** 7 · **Route:** `/api/billing/usage/current-month` (route)
+
+<!-- docgen:auto -->
+
+## Purpose
+The source has no header comment; what follows is read straight from its code.
+
+> **Auto-generated overview.** The tables below were extracted from the source by a script (exports, endpoints, events, data access, dependencies). A written walkthrough of the logic has not been added yet.
+
+## Overview (auto-extracted)
+
+### HTTP handlers
+
+- `GET /api/billing/usage/current-month`
+
+## Exports
+
+| Name | Kind | Signature / value | Line |
+|---|---|---|---|
+| `GET` | function | `GET(req: NextRequest)` | 4 |
+
+## Interfaces
+
+None detected: no endpoints, events, data access or environment reads were found.
+
+## Dependencies
+
+- **Internal:**
+  - `app/api/openclaw/proxy.ts` — `proxyAM`
+- **Packages:**
+  - `next` — `NextRequest`
+
+## Used by
+
+Entry: reached by the Next.js router at `/api/billing/usage/current-month` (route).

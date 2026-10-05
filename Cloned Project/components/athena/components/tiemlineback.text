@@ -1,0 +1,357 @@
+{
+    "status": true,
+    "message": "All Record Details",
+    "metadata": {
+        "count": 1,
+        "totalPages": 1,
+        "currentPage": 1,
+        "nextPage": null
+    },
+    "data": [
+        {
+            "_id": "6a355f133d48e4cb30e415ad",
+            "timesheetLogId": "6a339fb7e77ff151389aaaad",
+            "userId": "69b3664ba9f65dd044c5c327",
+            "approverId": null,
+            "workspaceId": "6a339f1ee77ff151389aaa56",
+            "weekStart": 1781375400000,
+            "weekEnd": 1781980199999,
+            "snapshotTaskEntries": [
+                {
+                    "taskId": "6a33d7bf29f6d168e32f215b",
+                    "monday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "tuesday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "wednesday": {
+                        "billable": 0,
+                        "nonBillable": 180
+                    },
+                    "thursday": {
+                        "billable": 0,
+                        "nonBillable": 1099
+                    },
+                    "friday": {
+                        "billable": 0,
+                        "nonBillable": 10
+                    },
+                    "saturday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "sunday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    }
+                },
+                {
+                    "taskId": "6a33d9cf29f6d168e32f2203",
+                    "monday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "tuesday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "wednesday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "thursday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "friday": {
+                        "billable": 0,
+                        "nonBillable": 10
+                    },
+                    "saturday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "sunday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    }
+                },
+                {
+                    "taskId": "6a3402bb29f6d168e32f260d",
+                    "monday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "tuesday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "wednesday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "thursday": {
+                        "billable": 0,
+                        "nonBillable": 120
+                    },
+                    "friday": {
+                        "billable": 0,
+                        "nonBillable": 3
+                    },
+                    "saturday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    },
+                    "sunday": {
+                        "billable": 0,
+                        "nonBillable": 0
+                    }
+                }
+            ],
+            "dailyTotals": {
+                "monday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "tuesday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "wednesday": {
+                    "billable": 0,
+                    "nonBillable": 180
+                },
+                "thursday": {
+                    "billable": 0,
+                    "nonBillable": 1219
+                },
+                "friday": {
+                    "billable": 0,
+                    "nonBillable": 31
+                },
+                "saturday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "sunday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                }
+            },
+            "submissionStatus": "pending",
+            "createdAt": "2026-06-19T15:24:03.840Z",
+            "updatedAt": "2026-06-19T15:24:03.840Z",
+            "__v": 0,
+            "userData": {
+                "_id": "69b3664ba9f65dd044c5c327",
+                "name": "KAMAL",
+                "email": "kamal@garage.app"
+            },
+            "timeSheetDetails": [
+                {
+                    "_id": "6a339fb7e77ff151389aaaad",
+                    "userId": "69b3664ba9f65dd044c5c327",
+                    "workspaceId": "6a339f1ee77ff151389aaa56",
+                    "weekStart": 1781375400000,
+                    "weekEnd": 1781980199999,
+                    "timeZone": "Asia/Calcutta",
+                    "draftTaskIds": [],
+                    "approvalTaskIds": [],
+                    "currentStatus": "submitted",
+                    "status": "active",
+                    "draftDailyTotals": {
+                        "monday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "tuesday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "wednesday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "thursday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "friday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "saturday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "sunday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        }
+                    },
+                    "approvalDailyTotals": {
+                        "monday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "tuesday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "wednesday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "thursday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "friday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "saturday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "sunday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        }
+                    },
+                    "dailyTotals": {
+                        "monday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "tuesday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "wednesday": {
+                            "billable": 0,
+                            "nonBillable": 180
+                        },
+                        "thursday": {
+                            "billable": 0,
+                            "nonBillable": 1219
+                        },
+                        "friday": {
+                            "billable": 0,
+                            "nonBillable": 31
+                        },
+                        "saturday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        },
+                        "sunday": {
+                            "billable": 0,
+                            "nonBillable": 0
+                        }
+                    },
+                    "taskEntries": [
+                        {
+                            "taskId": "6a33d7bf29f6d168e32f215b",
+                            "monday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "tuesday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "wednesday": {
+                                "billable": 0,
+                                "nonBillable": 180
+                            },
+                            "thursday": {
+                                "billable": 0,
+                                "nonBillable": 1099
+                            },
+                            "friday": {
+                                "billable": 0,
+                                "nonBillable": 10
+                            },
+                            "saturday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "sunday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            }
+                        },
+                        {
+                            "taskId": "6a33d9cf29f6d168e32f2203",
+                            "monday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "tuesday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "wednesday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "thursday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "friday": {
+                                "billable": 0,
+                                "nonBillable": 10
+                            },
+                            "saturday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "sunday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            }
+                        },
+                        {
+                            "taskId": "6a3402bb29f6d168e32f260d",
+                            "monday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "tuesday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "wednesday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "thursday": {
+                                "billable": 0,
+                                "nonBillable": 120
+                            },
+                            "friday": {
+                                "billable": 0,
+                                "nonBillable": 3
+                            },
+                            "saturday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            },
+                            "sunday": {
+                                "billable": 0,
+                                "nonBillable": 0
+                            }
+                        }
+                    ],
+                    "createdAt": "2026-06-18T07:35:19.299Z",
+                    "updatedAt": "2026-06-19T15:24:03.864Z",
+                    "__v": 0
+                }
+            ]
+        }
+    ]
+}

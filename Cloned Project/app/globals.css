@@ -1,0 +1,2405 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Every source file has a sibling <file>.md doc; keep Tailwind's automatic
+   class detection out of them so prose can't add CSS to the build. */
+@source not "../**/*.md";
+
+/* ============================================================
+   Side peek breakpoints
+   ------------------------------------------------------------
+   Pages size themselves with viewport breakpoints (sm: md: lg: …). In the
+   side peek (SidePeekPanel) the viewport is the whole window while the page
+   only gets a panel, so pages laid out for a desktop that isn't there —
+   crushed cards, overlapping pills, clipped columns.
+
+   These re-declare the min-width breakpoints so that inside the peek
+   ([data-side-peek], a `side-peek` container) they answer to the panel's
+   width, and everywhere else behave exactly as before: same media queries,
+   same rule order, no added specificity (:where). max-* variants are left
+   as they are — overriding those reorders the CSS.
+
+   Put breakpoint variants before pseudo-element ones (md:before:, not
+   before:md:): a :where() can't follow a pseudo-element.
+   ============================================================ */
+@custom-variant sm {
+  @media (width >= 40rem) { &:where(:not([data-side-peek] *)) { @slot; } }
+  @container side-peek (width >= 40rem) { @slot; }
+}
+@custom-variant md {
+  @media (width >= 48rem) { &:where(:not([data-side-peek] *)) { @slot; } }
+  @container side-peek (width >= 48rem) { @slot; }
+}
+@custom-variant lg {
+  @media (width >= 64rem) { &:where(:not([data-side-peek] *)) { @slot; } }
+  @container side-peek (width >= 64rem) { @slot; }
+}
+@custom-variant xl {
+  @media (width >= 80rem) { &:where(:not([data-side-peek] *)) { @slot; } }
+  @container side-peek (width >= 80rem) { @slot; }
+}
+@custom-variant 2xl {
+  @media (width >= 96rem) { &:where(:not([data-side-peek] *)) { @slot; } }
+  @container side-peek (width >= 96rem) { @slot; }
+}
+
+/* Skeleton shimmer sweep animation */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+/* Baseline font size + text-size-adjust.
+   Windows browsers (especially with display scaling != 100%) and
+   some Edge installs apply user-agent text-size adjustments that
+   make rem-sized layouts render way larger than designed — users
+   see the whole app "crazy zoomed in" even though their browser
+   zoom is 100%. Forcing 16px on html and pinning text-size-adjust
+   keeps every rem-based dimension consistent across platforms. */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Prevent iOS zoom on input focus */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+/* Remove number input spin buttons/arrows */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  /* Org accent. Deliberately separate from --primary: .deals-primary-scope
+     re-points --primary at purple for a whole subtree, and the chrome
+     (tab bar, left sidebar, right panel) must keep the office's colour
+     even while that scope is on screen. */
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: #0c0c0e;
+  --foreground: #eaeaea;
+  --card: #1e1e2d;
+  --card-foreground: #eaeaea;
+  --popover: #1e1e2d;
+  --popover-foreground: #eaeaea;
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --secondary: var(--brand-2);
+  --secondary-foreground: #eaeaea;
+  /* Garage yellow, overwritten at runtime with the office's
+     branding.primaryColor by BrandColorProvider. */
+  --brand: #fbd10d;
+  --brand-2: #fba70a;
+  --brand-foreground: #000000;
+  --muted: var(--brand);
+  --muted-foreground: #eaeaea;
+  --accent: rgba(128, 128, 128, 0.589);
+  --accent-foreground: #eaeaea;
+  --accent: rgba(128, 128, 128, 0.589);
+  --border: #eaeaea;
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.deals-primary-scope {
+  --primary: #8b7aff;
+  --primary-foreground: #ffffff;
+}
+
+/* CMS: force readable contrast on yellow CTAs + pointer on clickables */
+.cms-ui button,
+.cms-ui [role="button"],
+.cms-ui a,
+.cms-ui select {
+  cursor: pointer;
+}
+.cms-ui button:disabled,
+.cms-ui [aria-disabled="true"] {
+  cursor: not-allowed;
+}
+.cms-ui .cms-accent-on-yellow {
+  color: var(--brand-foreground) !important;
+}
+
+.dark {
+  --background: #0c0c0e;
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Glass 1 - Basic */
+.glass {
+  background: rgba(12, 12, 14, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  /* border-radius: 12px; */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Glass 2 - Pro */
+.glass-pro {
+  background: rgba(12, 12, 14, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+
+  border-bottom: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+
+  /* border-radius: 16px; */
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--brand) 30%, transparent), 0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Glass 3 - Max */
+.glass-max {
+  background: rgba(12, 12, 14, 0.9);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-bottom: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  /* border-radius: 20px; */
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--brand) 30%, transparent), 0 6px 20px rgba(0, 0, 0, 0.5),
+    inset 0 2px 0 rgba(255, 255, 255, 0.2);
+  position: relative;
+}
+
+/* ============================================================
+   Ratings & Reviews dialog surfaces
+   ------------------------------------------------------------
+   Flat dark surfaces matching the rest of the app (same palette
+   as WriteReviewDialog / feed post cards: #111115 panels,
+   #2a2a35 borders, flat var(--brand) primary).
+
+   Rules are intentionally unlayered so they win over the Tailwind
+   utilities (`@layer utilities`) still on the same elements.
+   ============================================================ */
+
+/* Scrim behind the dialog. */
+.lg-backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: lg-fade-in 0.24s ease-out;
+}
+
+/* The dialog panel itself. */
+.lg-shell {
+  position: relative;
+  border-radius: 16px;
+  border: 1px solid #2a2a35;
+  background: #111115;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  animation: lg-panel-in 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Inset grouped container — office picker, filter bar, tab track.
+   Darker than the shell so it reads as recessed into it. */
+.lg-panel {
+  position: relative;
+  border: 1px solid #26262f;
+  background: #0c0c10;
+}
+
+/* A floating card — one review in the founder's queue. */
+.lg-card {
+  border: 1px solid #2a2a35 !important;
+  background: #16161c !important;
+}
+
+/* The context strip that sits directly on top of `.lg-card`. Shares
+   its edges so the two read as one pane, not two. */
+.lg-card-header {
+  border: 1px solid #2a2a35 !important;
+  border-bottom: 0 !important;
+  background: #1b1b22 !important;
+}
+
+/* Segmented control / filter chip. */
+.lg-chip {
+  position: relative;
+  border: 1px solid transparent;
+  background: transparent;
+  transition:
+    background 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.lg-chip:hover:not(.lg-chip-active) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #2a2a35;
+}
+
+.lg-chip-active {
+  border-color: #3a3a47;
+  background: #2a2a35;
+}
+
+/* A selectable row inside `.lg-panel`. */
+.lg-row {
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.lg-row:hover:not(.lg-row-selected):not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lg-row-selected {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--brand) 14%, transparent),
+    color-mix(in srgb, var(--brand) 5%, transparent) 60%,
+    transparent
+  );
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--brand) 75%, transparent);
+}
+
+/* Text input, textarea, dropzone. */
+.lg-field {
+  border: 1px solid #2a2a35 !important;
+  background: #0a0a0e !important;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.lg-field:focus,
+.lg-field:focus-visible {
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent);
+}
+
+/* Ghost / secondary button. */
+.lg-btn {
+  border: 1px solid #2a2a35;
+  background: #1b1b22;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.lg-btn:hover:not(:disabled) {
+  background: #26262f;
+  border-color: #3a3a47;
+}
+
+/* Primary action — same flat brand colour as every other dialog. */
+.lg-btn-primary {
+  border: 0;
+  background: var(--brand);
+  transition: background 0.2s ease;
+}
+
+.lg-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand) 85%, white);
+}
+
+/* Icon-only button (dialog close). */
+.lg-icon-btn {
+  border: 0;
+  background: transparent;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.lg-icon-btn:hover {
+  background: #2a2a35;
+}
+
+/* Hairline separator. */
+.lg-hairline {
+  border-bottom: 1px solid #26262f;
+}
+
+.lg-divide > * + * {
+  border-top: 1px solid #26262f;
+}
+
+/* Fields inside ReviewFormFields, which is shared with other review
+   surfaces — the glass only applies under a `.lg-scope` ancestor, so
+   the other surfaces keep their existing flat styling. */
+.lg-scope [data-lg-field] {
+  border: 1px solid #2a2a35 !important;
+  background: #0a0a0e !important;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.lg-scope [data-lg-field]:focus {
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent);
+}
+
+.lg-scope [data-lg-dropzone] {
+  border: 1px dashed #3a3a47 !important;
+  background: #0a0a0e !important;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.lg-scope [data-lg-dropzone]:hover {
+  border-color: #4a4a5a !important;
+  background: #101016 !important;
+}
+
+.lg-scope [data-lg-dropzone][data-lg-drag="true"] {
+  border-color: color-mix(in srgb, var(--brand) 80%, transparent) !important;
+  background: color-mix(in srgb, var(--brand) 8%, transparent) !important;
+}
+
+.lg-scope .lg-card button:hover:not(:disabled) {
+  background: #2a2a35 !important;
+}
+
+@keyframes lg-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lg-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-backdrop,
+  .lg-shell {
+    animation: none;
+  }
+}
+
+/* Add to your global CSS */
+@keyframes gradient {
+
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 3s ease infinite;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-[#3a3a45] rounded-full transition-colors hover:bg-[#4a4a55];
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Dark-surface autofill.
+
+   When a value is picked from the browser's saved-entries dropdown, Chrome and
+   Safari repaint the field with their own near-white background, which is
+   unreadable on our dark inputs. `background-color` can't override it — the UA
+   stylesheet wins — so the background is repainted with a large inset shadow
+   instead, and the text colour is forced via -webkit-text-fill-color.
+
+   The long transition delay is the standard trick to stop the UA re-applying
+   its colour a frame later. */
+.autofill-dark:-webkit-autofill,
+.autofill-dark:-webkit-autofill:hover,
+.autofill-dark:-webkit-autofill:focus,
+.autofill-dark:-webkit-autofill:active {
+  -webkit-text-fill-color: #ffffff;
+  -webkit-box-shadow: 0 0 0 1000px #111115 inset;
+  box-shadow: 0 0 0 1000px #111115 inset;
+  caret-color: #ffffff;
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
+
+/* Custom scrollbar utility for scrollable panels and text areas */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(188, 194, 3, 0.3) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(152, 16, 250, 0.3);
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(152, 16, 250, 0.55);
+}
+
+
+/* Globe/Maps View Styles */
+/* Mapbox GL overrides */
+.mapboxgl-canvas-container,
+.mapboxgl-canvas {
+  touch-action: none !important;
+}
+
+.mapboxgl-ctrl-group {
+  display: none !important;
+}
+
+/* Globe marker styles */
+.globe-marker {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #fbbf24;
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.6);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1f2937;
+}
+
+.globe-marker:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.8);
+}
+
+.globe-marker-stakeholder {
+  width: 28px;
+  height: 28px;
+}
+
+.globe-marker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.globe-marker-initial {
+  color: #fbbf24;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* Mapbox popup dark theme */
+.mapboxgl-popup-content {
+  background: #1f2937 !important;
+  color: white !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+  max-width: 380px !important;
+}
+
+.mapboxgl-popup-tip {
+  border-top-color: #1f2937 !important;
+}
+
+.mapboxgl-popup-close-button {
+  color: #9ca3af !important;
+  font-size: 18px !important;
+  padding: 8px 12px !important;
+  right: 4px !important;
+  top: 4px !important;
+}
+
+.mapboxgl-popup-close-button:hover {
+  color: white !important;
+  background: transparent !important;
+}
+
+/* Popup content styling */
+.globe-popup-content {
+  padding: 16px;
+}
+
+.globe-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.globe-popup-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid #fbbf24;
+  object-fit: cover;
+}
+
+.globe-popup-avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid #fbbf24;
+  background: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fbbf24;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.globe-popup-info h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.globe-popup-location {
+  font-size: 13px;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.globe-popup-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.globe-popup-badge-hq {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.globe-popup-badge-founder {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+}
+
+.globe-popup-badge-stakeholder {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.globe-popup-description {
+  font-size: 13px;
+  color: #d1d5db;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.globe-popup-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.globe-popup-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #9ca3af;
+}
+
+.globe-popup-stat-value {
+  color: white;
+  font-weight: 500;
+}
+
+.globe-popup-button {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: linear-gradient(135deg, var(--brand-2), var(--brand));
+  color: #0c0c0e;
+}
+
+.globe-popup-button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Marquee/Ticker animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee var(--marquee-duration, 60s) linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Globe sidebar styles */
+.globe-sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 320px;
+  background: #0c0c0e;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-y: auto;
+  z-index: 10;
+  transition: transform 0.3s ease;
+}
+
+.globe-sidebar.closed {
+  transform: translateX(-100%);
+}
+
+@media (max-width: 1024px) {
+  .globe-sidebar {
+    position: fixed;
+    right: 0;
+    left: auto;
+    width: 95vw;
+    max-width: 320px;
+    transform: translateX(100%);
+    border-right: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .globe-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .mapboxgl-popup-content {
+    max-width: 320px !important;
+  }
+}
+
+/* ========================================
+   Affiliate Globe Marker & Popup Styles
+   ======================================== */
+
+.affiliate-globe-marker {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #8b5cf6;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+}
+
+.affiliate-globe-marker:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
+}
+
+.affiliate-globe-marker.has-children {
+  border-color: #a855f7;
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+}
+
+.affiliate-globe-marker.founder {
+  border-color: #f59e0b;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+}
+
+.affiliate-globe-marker.founder:hover {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
+}
+
+.affiliate-globe-marker.basic-plan {
+  border-color: #3b82f6;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+}
+
+.affiliate-globe-marker.basic-plan:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+}
+
+.affiliate-globe-marker.pro-plan {
+  border-color: #f97316;
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.5);
+}
+
+.affiliate-globe-marker.pro-plan:hover {
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.6);
+}
+
+.affiliate-globe-marker.focused {
+  width: 48px;
+  height: 48px;
+  border: 3px solid #06b6d4;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.6), 0 0 40px rgba(6, 182, 212, 0.3);
+  z-index: 10;
+}
+
+.affiliate-globe-marker.focused.founder {
+  border-color: #f59e0b;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.6), 0 0 40px rgba(245, 158, 11, 0.3);
+}
+
+.affiliate-globe-marker.focused.basic-plan {
+  border-color: #3b82f6;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6), 0 0 40px rgba(59, 130, 246, 0.3);
+}
+
+.affiliate-globe-marker.focused.pro-plan {
+  border-color: #f97316;
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.6), 0 0 40px rgba(249, 115, 22, 0.3);
+}
+
+.affiliate-globe-marker.focused:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 25px rgba(6, 182, 212, 0.8), 0 0 50px rgba(6, 182, 212, 0.4);
+}
+
+.affiliate-globe-marker.focused .affiliate-globe-marker-initial {
+  font-size: 18px;
+}
+
+.affiliate-globe-marker-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.affiliate-globe-marker-initial {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+}
+
+/* Affiliate Popup Styles */
+.affiliate-popup .mapboxgl-popup-content {
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.affiliate-popup .mapboxgl-popup-close-button {
+  color: #a1a1aa;
+  font-size: 18px;
+  padding: 8px 12px;
+}
+
+.affiliate-popup .mapboxgl-popup-close-button:hover {
+  color: white;
+  background: transparent;
+}
+
+.affiliate-popup .mapboxgl-popup-tip {
+  border-top-color: #18181b;
+}
+
+.affiliate-popup-content {
+  padding: 16px;
+}
+
+.affiliate-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.affiliate-popup-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #8b5cf6;
+}
+
+.affiliate-popup-avatar.founder {
+  border-color: #f59e0b;
+}
+
+.affiliate-popup-avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  border: 2px solid #8b5cf6;
+}
+
+.affiliate-popup-avatar-placeholder.founder {
+  background: linear-gradient(135deg, #d97706, #ea580c);
+  border-color: #f59e0b;
+}
+
+.affiliate-popup-info {
+  flex: 1;
+}
+
+.affiliate-popup-name {
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.affiliate-popup-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.affiliate-popup-badge.status-active {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.affiliate-popup-badge.status-inactive {
+  background: rgba(113, 113, 122, 0.2);
+  color: #a1a1aa;
+}
+
+.affiliate-popup-badge.type-founder {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.affiliate-popup-badge.purchase-unilevel {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.affiliate-popup-badge.purchase-basic {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.affiliate-popup-badge.purchase-pro {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+}
+
+.affiliate-popup-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.affiliate-popup-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 8px 0;
+  border-top: 1px solid #3f3f46;
+  border-bottom: 1px solid #3f3f46;
+}
+
+.affiliate-popup-stat {
+  text-align: center;
+}
+
+.affiliate-popup-stat-value {
+  display: block;
+  color: #a855f7;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.affiliate-popup-stat-label {
+  color: #71717a;
+  font-size: 11px;
+}
+
+.affiliate-popup-button {
+  width: 100%;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.affiliate-popup-button:hover {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  transform: translateY(-1px);
+}
+
+.affiliate-popup-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.affiliate-popup-button.secondary {
+  background: transparent;
+  border: 1px solid #3f3f46;
+  color: #a1a1aa;
+}
+
+.affiliate-popup-button.secondary:hover {
+  background: #3f3f46;
+  color: white;
+  transform: none;
+}
+
+.affiliate-popup-focused-label {
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(6, 182, 212, 0.15);
+  color: #06b6d4;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Affiliate Profile Overlay Animation */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+/* Rotating border glow for Grow Your Network button */
+@keyframes border-rotate {
+  0% {
+    --border-angle: 0deg;
+  }
+
+  100% {
+    --border-angle: 360deg;
+  }
+}
+
+/* Speaking-mic visualizer bars. Referenced by SpeakingMicIndicator
+   in components/office/VideoGrid.tsx — the three bars share this
+   keyframe with staggered animation-delay so they read as an audio
+   visualizer. Pure CSS, no per-frame JS. Ported verbatim from NC's
+   globals.css so the visual matches. */
+@keyframes micBounce {
+  0%, 100% { transform: scaleY(0.35); }
+  50%      { transform: scaleY(1); }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  60%,
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.grow-network-btn {
+  position: relative;
+  isolation: isolate;
+  cursor: pointer;
+}
+
+.grow-network-btn::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 10px;
+  background: conic-gradient(from var(--border-angle),
+      color-mix(in srgb, var(--brand-2) 15%, transparent) 0%,
+      color-mix(in srgb, var(--brand-2) 15%, transparent) 40%,
+      var(--brand-2) 50%,
+      #ffb720 55%,
+      color-mix(in srgb, var(--brand-2) 15%, transparent) 65%,
+      color-mix(in srgb, var(--brand-2) 15%, transparent) 100%);
+  animation: border-rotate 3s linear infinite;
+  z-index: -1;
+}
+
+.grow-network-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: #0e0e12;
+  z-index: -1;
+  transition: background 0.2s ease;
+}
+
+.grow-network-btn:hover::after {
+  background: #1a1a22;
+}
+
+/* ========================================
+   Testimonials Showcase Styles (Speakeasy-inspired)
+   ======================================== */
+
+/* Dot pattern background */
+.dot-pattern-bg {
+  background-image: radial-gradient(#2a2a35 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.dot-pattern-dense {
+  background-image: radial-gradient(#2a2a35 1.5px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+
+/* Testimonial card styles */
+.testimonial-card {
+  @apply bg-[#1e1e2d] rounded-xl border border-[#2a2a35] overflow-hidden;
+  @apply hover:border-brand/30 transition-all duration-300;
+}
+
+.testimonial-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.testimonial-card-featured {
+  @apply ring-1 ring-brand/50;
+}
+
+/* Category filter chips */
+.category-chip {
+  @apply px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap;
+  @apply bg-[#1e1e2d] text-[#9fa0b8] hover:bg-[#2a2a35] hover:text-white;
+}
+
+.category-chip.active {
+  @apply bg-brand text-brand-foreground;
+}
+
+/* Hero section gradient */
+.testimonials-hero-gradient {
+  background: linear-gradient(180deg, rgba(12, 12, 14, 0) 0%, rgba(12, 12, 14, 0.8) 50%, rgba(12, 12, 14, 1) 100%);
+}
+
+/* Quote styling */
+.testimonial-quote {
+  @apply relative pl-6 border-l-2 border-brand italic text-lg text-[#d1d5db];
+}
+
+.testimonial-quote::before {
+  content: '"';
+  @apply absolute -left-1 -top-2 text-4xl text-brand opacity-50;
+}
+
+/* Progress bar for showcase sections */
+.progress-line {
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-2) 50%, var(--brand) 100%);
+  height: 3px;
+}
+
+/* Content block styling */
+.content-block-text {
+  @apply text-lg max-w-none text-[#d1d5db] leading-relaxed;
+}
+
+.content-block-text h1,
+.content-block-text h2,
+.content-block-text h3,
+.content-block-text h4,
+.content-block-text h5,
+.content-block-text h6 {
+  @apply text-white font-semibold mt-6 mb-4;
+}
+
+.content-block-text h1 {
+  @apply text-3xl;
+}
+
+.content-block-text h2 {
+  @apply text-2xl;
+}
+
+.content-block-text h3 {
+  @apply text-xl;
+}
+
+.content-block-text p {
+  @apply text-[#d1d5db] mb-4;
+}
+
+.content-block-text a {
+  @apply text-brand no-underline hover:underline;
+}
+
+.content-block-text strong {
+  @apply text-white font-semibold;
+}
+
+.content-block-text em {
+  @apply text-[#d1d5db] italic;
+}
+
+.content-block-text ul,
+.content-block-text ol {
+  @apply pl-6 mb-4;
+}
+
+.content-block-text li {
+  @apply mb-2;
+}
+
+.content-block-text blockquote {
+  @apply border-l-4 border-brand pl-4 italic text-[#9fa0b8] my-4;
+}
+
+/* Info sheet sidebar */
+.info-sheet {
+  @apply bg-[#1e1e2d] rounded-xl border border-[#2a2a35] p-6;
+}
+
+.info-sheet-item {
+  @apply flex items-start gap-3 py-3 border-b border-[#2a2a35] last:border-0;
+}
+
+.info-sheet-icon {
+  @apply w-8 h-8 rounded-lg bg-[#2a2a35] flex items-center justify-center shrink-0;
+}
+
+.info-sheet-label {
+  @apply text-xs text-[#6b6b7b] uppercase tracking-wider;
+}
+
+.info-sheet-value {
+  @apply text-sm text-white font-medium;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Manual context markdown preview (ManualContextsView)
+   Styles the output of react-markdown + remark-gfm so it visually
+   matches the rest of the dark-themed dashboard. Scoped to the
+   .markdown-preview class to avoid leaking onto other content.
+   ───────────────────────────────────────────────────────────────── */
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+  @apply text-white font-semibold tracking-tight;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+.markdown-preview h1 {
+  font-size: 1.75rem;
+  border-bottom: 1px solid #16161f;
+  padding-bottom: 0.3em;
+}
+
+.markdown-preview h2 {
+  font-size: 1.35rem;
+  border-bottom: 1px solid #16161f;
+  padding-bottom: 0.25em;
+}
+
+.markdown-preview h3 {
+  font-size: 1.1rem;
+}
+
+.markdown-preview h4 {
+  font-size: 0.95rem;
+}
+
+.markdown-preview h5,
+.markdown-preview h6 {
+  font-size: 0.85rem;
+}
+
+.markdown-preview>*:first-child {
+  margin-top: 0;
+}
+
+.markdown-preview p {
+  margin: 0.75em 0;
+}
+
+.markdown-preview strong {
+  @apply text-white font-semibold;
+}
+
+.markdown-preview em {
+  @apply text-[#c7c7da] italic;
+}
+
+.markdown-preview a {
+  @apply text-brand hover:underline;
+  text-decoration: none;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 0.75em 0;
+  padding-left: 1.5em;
+}
+
+.markdown-preview ul {
+  list-style: disc;
+}
+
+.markdown-preview ol {
+  list-style: decimal;
+}
+
+.markdown-preview ul ul,
+.markdown-preview ol ol,
+.markdown-preview ul ol,
+.markdown-preview ol ul {
+  margin: 0.25em 0;
+}
+
+.markdown-preview li {
+  margin: 0.25em 0;
+}
+
+.markdown-preview li::marker {
+  color: #5a5a72;
+}
+
+.markdown-preview blockquote {
+  @apply border-l-2 border-brand/30 pl-4 text-[#9fa0b8];
+  margin: 0.75em 0;
+  font-style: italic;
+}
+
+.markdown-preview code {
+  @apply bg-[#16161f] text-brand rounded;
+  padding: 0.15em 0.35em;
+  font-size: 0.85em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.markdown-preview pre {
+  @apply bg-[#0e0e14] border border-[#1a1a22] rounded-lg;
+  padding: 0.9em 1em;
+  margin: 0.9em 0;
+  overflow-x: auto;
+}
+
+.markdown-preview pre code {
+  @apply bg-transparent text-[#b8b9cf];
+  padding: 0;
+  font-size: 0.85em;
+}
+
+.markdown-preview hr {
+  @apply border-[#1a1a22];
+  margin: 1.5em 0;
+  border-top-width: 1px;
+}
+
+.markdown-preview table {
+  @apply border border-[#1a1a22] rounded-md;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0.9em 0;
+  font-size: 0.9em;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.markdown-preview thead {
+  @apply bg-[#0e0e14];
+}
+
+.markdown-preview th {
+  @apply text-[#c7c7da] font-semibold text-left;
+  padding: 0.55em 0.8em;
+  border-bottom: 1px solid #1a1a22;
+}
+
+.markdown-preview td {
+  @apply text-[#9fa0b8];
+  padding: 0.55em 0.8em;
+  border-bottom: 1px solid #16161f;
+}
+
+.markdown-preview tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown-preview tbody tr:hover {
+  @apply bg-[#0e0e14];
+}
+
+.markdown-preview img {
+  @apply rounded-md border border-[#1a1a22];
+  max-width: 100%;
+  margin: 0.9em 0;
+}
+
+.markdown-preview input[type="checkbox"] {
+  accent-color: var(--brand);
+  margin-right: 0.4em;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Coverfi skin — scoped overrides for a calmer, classier dark dashboard.
+   Applied when `.coverfi-skin` is present on <body> (toggled by the
+   Coverfi layout). Targets shadcn data-slot attributes so dialogs in
+   portals get themed too.
+   ──────────────────────────────────────────────────────────────────── */
+
+.coverfi-skin {
+  --cf-surface-1: #0a0a0d;
+  --cf-surface-2: #0e0e12;
+  --cf-surface-3: #14141a;
+  --cf-line: rgba(255, 255, 255, 0.055);
+  --cf-line-strong: rgba(255, 255, 255, 0.09);
+  --cf-yellow: var(--brand);
+
+  /* Override shadcn tokens so anything using `var(--border)` etc.
+     inherits the calmer Coverfi palette automatically. */
+  --border: rgba(255, 255, 255, 0.055);
+  --input: rgba(255, 255, 255, 0.075);
+  --ring: color-mix(in srgb, var(--brand) 55%, transparent);
+}
+
+/* ─── Inputs / textareas / select triggers ─── */
+.coverfi-skin [data-slot="input"],
+.coverfi-skin [data-slot="textarea"],
+.coverfi-skin [data-slot="select-trigger"] {
+  background-color: rgba(255, 255, 255, 0.022);
+  border: 1px solid var(--cf-line);
+  border-radius: 0.625rem;
+  transition: background-color 180ms ease, border-color 180ms ease,
+    box-shadow 180ms ease;
+  box-shadow: none;
+}
+
+.coverfi-skin [data-slot="input"]:hover:not(:disabled),
+.coverfi-skin [data-slot="textarea"]:hover:not(:disabled),
+.coverfi-skin [data-slot="select-trigger"]:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.035);
+  border-color: var(--cf-line-strong);
+}
+
+.coverfi-skin [data-slot="input"]:focus-visible,
+.coverfi-skin [data-slot="textarea"]:focus-visible,
+.coverfi-skin [data-slot="select-trigger"]:focus-visible,
+.coverfi-skin [data-slot="select-trigger"][data-state="open"] {
+  background-color: color-mix(in srgb, var(--brand) 4%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 35%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 7%, transparent) !important;
+  outline: none !important;
+}
+
+.coverfi-skin [data-slot="input"]::placeholder,
+.coverfi-skin [data-slot="textarea"]::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+}
+
+/* ─── Dialog (portal) ─── */
+.coverfi-skin [data-slot="dialog-content"] {
+  background: linear-gradient(180deg, #0e0e12 0%, #0a0a0d 100%);
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 1rem;
+  box-shadow: 0 24px 56px -16px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
+  padding: 1.5rem;
+}
+
+.coverfi-skin [data-slot="dialog-overlay"] {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.coverfi-skin [data-slot="dialog-title"] {
+  font-size: 1.05rem;
+  letter-spacing: -0.005em;
+  font-weight: 600;
+}
+
+.coverfi-skin [data-slot="dialog-description"] {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.coverfi-skin [data-slot="dialog-close"] {
+  border-radius: 0.5rem;
+  opacity: 0.6;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.coverfi-skin [data-slot="dialog-close"]:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ─── Select dropdown content ─── */
+.coverfi-skin [data-slot="select-content"] {
+  background: #0e0e12;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 0.625rem;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.5);
+}
+
+.coverfi-skin [data-slot="select-item"] {
+  border-radius: 0.375rem;
+  transition: background-color 120ms ease;
+}
+
+.coverfi-skin [data-slot="select-item"][data-highlighted] {
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  color: white;
+}
+
+/* ─── Buttons ─── */
+/* Primary (yellow) gets a subtle glow on hover. */
+.coverfi-skin [data-slot="button"].bg-primary {
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  transition: all 180ms ease;
+}
+
+.coverfi-skin [data-slot="button"].bg-primary:hover:not(:disabled) {
+  box-shadow: 0 0 18px -4px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+/* Outline button: softer surface, no harsh border */
+.coverfi-skin [data-slot="button"].border:not(.bg-primary):not(.bg-destructive) {
+  background-color: rgba(255, 255, 255, 0.025);
+  border-color: var(--cf-line);
+  transition: all 180ms ease;
+}
+
+.coverfi-skin [data-slot="button"].border:not(.bg-primary):not(.bg-destructive):hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--cf-line-strong);
+}
+
+/* Ghost button hover — calmer */
+.coverfi-skin [data-slot="button"]:not(.bg-primary):not(.border):not(.bg-destructive):not(.bg-secondary) {
+  transition: background-color 150ms ease;
+}
+
+/* ─── Tables ─── */
+.coverfi-skin table thead tr {
+  border-bottom-color: var(--cf-line) !important;
+}
+
+.coverfi-skin table tbody tr {
+  border-bottom-color: rgba(255, 255, 255, 0.03) !important;
+  transition: background-color 180ms ease;
+}
+
+.coverfi-skin table tbody tr:hover {
+  background-color: color-mix(in srgb, var(--brand) 2.5%, transparent) !important;
+}
+
+.coverfi-skin table tbody tr:last-child {
+  border-bottom: 0 !important;
+}
+
+.coverfi-skin table th {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.42);
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+.coverfi-skin table td {
+  padding-top: 0.95rem;
+  padding-bottom: 0.95rem;
+  font-size: 13.5px;
+}
+
+/* Surface containers used across Coverfi (rounded-lg border bg-[#0c0c12]) — soften the border globally */
+.coverfi-skin .rounded-lg.border,
+.coverfi-skin .rounded-xl.border,
+.coverfi-skin .rounded-md.border {
+  border-color: var(--cf-line);
+}
+
+/* Labels — slightly more refined */
+.coverfi-skin label {
+  letter-spacing: 0.015em;
+}
+
+/* Native color input — make it less browser-y */
+.coverfi-skin input[type="color"] {
+  border: 1px solid var(--cf-line);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.coverfi-skin input[type="color"]:hover {
+  border-color: var(--cf-line-strong);
+}
+
+/* Native file input (PDF upload) — calmer */
+.coverfi-skin input[type="file"] {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+}
+
+.coverfi-skin input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--cf-line);
+  background: rgba(255, 255, 255, 0.025);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BlockNote Dark Theme Overrides
+   Ensures built-in blocks (image, video, audio, file, code)
+   have proper contrast and visibility in the dark editor.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Image / Video / Audio / File upload placeholders */
+.bn-block-content[data-content-type="image"],
+.bn-block-content[data-content-type="video"],
+.bn-block-content[data-content-type="audio"],
+.bn-block-content[data-content-type="file"] {
+  background: #1a1a1e !important;
+}
+
+.bn-block-content[data-content-type="image"] .bn-file-upload-input,
+.bn-block-content[data-content-type="video"] .bn-file-upload-input,
+.bn-block-content[data-content-type="audio"] .bn-file-upload-input,
+.bn-block-content[data-content-type="file"] .bn-file-upload-input,
+.bn-block-content[data-content-type="image"] .bn-add-block-button,
+.bn-block-content[data-content-type="video"] .bn-add-block-button {
+  color: #a1a1aa !important;
+  background: transparent !important;
+  border: 2px dashed #3f3f46 !important;
+  border-radius: 0.5rem !important;
+  padding: 1.5rem !important;
+}
+
+.bn-block-content[data-content-type="image"] .bn-file-upload-input:hover,
+.bn-block-content[data-content-type="video"] .bn-file-upload-input:hover,
+.bn-block-content[data-content-type="audio"] .bn-file-upload-input:hover,
+.bn-block-content[data-content-type="file"] .bn-file-upload-input:hover {
+  border-color: #22c55e !important;
+  background: rgba(34, 197, 94, 0.05) !important;
+  color: #d4d4d8 !important;
+}
+
+/* Upload icon / button inside placeholders */
+.bn-block-content .bn-file-upload-input>span,
+.bn-block-content .bn-file-upload-input>div,
+.bn-block-content .bn-file-upload-input>svg {
+  color: #71717a !important;
+  fill: #71717a !important;
+}
+
+/* When an image/video has a URL — ensure it's visible */
+.bn-block-content[data-content-type="image"] img,
+.bn-block-content[data-content-type="image"] .bn-file-block-content-wrapper img {
+  border-radius: 0.5rem !important;
+  background: #09090b !important;
+  display: block !important;
+  max-width: 100% !important;
+  height: auto !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.bn-block-content[data-content-type="video"] video,
+.bn-block-content[data-content-type="video"] .bn-file-block-content-wrapper video {
+  border-radius: 0.5rem !important;
+  background: #09090b !important;
+  display: block !important;
+  max-width: 100% !important;
+  height: auto !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Ensure the file block content wrapper is visible when it has content */
+.bn-block-content[data-content-type="image"] .bn-file-block-content-wrapper,
+.bn-block-content[data-content-type="video"] .bn-file-block-content-wrapper,
+.bn-block-content[data-content-type="audio"] .bn-file-block-content-wrapper,
+.bn-block-content[data-content-type="file"] .bn-file-block-content-wrapper {
+  display: block !important;
+  min-height: auto !important;
+}
+
+/* Hide the upload placeholder when content is present */
+.bn-block-content[data-content-type="image"] .bn-file-block-content-wrapper:has(img),
+.bn-block-content[data-content-type="video"] .bn-file-block-content-wrapper:has(video) {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Audio player */
+.bn-block-content[data-content-type="audio"] audio {
+  filter: invert(0.85) hue-rotate(180deg);
+  border-radius: 0.5rem;
+}
+
+/* File attachment block */
+.bn-block-content[data-content-type="file"] .bn-file-block-content-wrapper {
+  background: #1a1a1e !important;
+  border: 1px solid #27272a !important;
+  border-radius: 0.5rem !important;
+  color: #d4d4d8 !important;
+}
+
+.bn-block-content[data-content-type="file"] .bn-file-block-content-wrapper:hover {
+  border-color: #3f3f46 !important;
+}
+
+/* Code block dark theme */
+.bn-block-content[data-content-type="codeBlock"] {
+  background: #09090b !important;
+  border: 1px solid #27272a !important;
+  border-radius: 0.5rem !important;
+}
+
+.bn-block-content[data-content-type="codeBlock"] pre,
+.bn-block-content[data-content-type="codeBlock"] code {
+  color: #d4d4d8 !important;
+  background: transparent !important;
+}
+
+/* Generic block content — ensure text is visible */
+.bn-block-content {
+  color: #d4d4d8 !important;
+}
+
+/* Placeholder text inside empty blocks */
+.bn-block-content .bn-inline-content::before {
+  color: #52525b !important;
+}
+
+/* Caption text under images/videos */
+.bn-block-content[data-content-type="image"] .bn-file-caption,
+.bn-block-content[data-content-type="video"] .bn-file-caption,
+.bn-block-content[data-content-type="audio"] .bn-file-caption {
+  color: #71717a !important;
+  background: transparent !important;
+}
+
+/* Hide upload placeholders in read-only mode */
+.bn-block[contenteditable="false"] .bn-file-upload-input,
+.bn-block[contenteditable="false"] .bn-add-block-button {
+  display: none !important;
+}
+
+.bn-block-content[data-content-type="image"] .bn-file-caption:focus,
+.bn-block-content[data-content-type="video"] .bn-file-caption:focus,
+.bn-block-content[data-content-type="audio"] .bn-file-caption:focus {
+  color: #a1a1aa !important;
+  background: transparent !important;
+}
+
+/* Tooltip / popover menus inside BlockNote */
+.bn-tooltip,
+.bn-suggestion-menu,
+.bn-color-suggestion-menu {
+  background: #18181b !important;
+  border: 1px solid #27272a !important;
+  color: #d4d4d8 !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+.bn-suggestion-menu-item:hover,
+.bn-suggestion-menu-item.is-active {
+  background: #27272a !important;
+  color: #fafafa !important;
+}
+
+/* Drag handle */
+.bn-drag-handle {
+  color: #52525b !important;
+}
+
+.bn-drag-handle:hover {
+  color: #a1a1aa !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.coverfi-skin input[type="file"]::file-selector-button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--cf-line-strong);
+}
+
+/* Checkbox / radio native — yellow accent */
+.coverfi-skin input[type="checkbox"],
+.coverfi-skin input[type="radio"] {
+  accent-color: var(--cf-yellow);
+}
+
+/* Code / mono — calmer color */
+.coverfi-skin code {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  background-color: transparent;
+}
+
+/* Headings — tighter tracking */
+.coverfi-skin h1,
+.coverfi-skin h2,
+.coverfi-skin h3 {
+  letter-spacing: -0.015em;
+}
+
+/* ── Chat code block syntax highlighting ─────────────────────────── */
+.garage-code-block .tk-comment {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.garage-code-block .tk-string {
+  color: #a3e635;
+}
+
+.garage-code-block .tk-number {
+  color: #fb923c;
+}
+
+.garage-code-block .tk-keyword {
+  color: #c084fc;
+  font-weight: 600;
+}
+
+.garage-code-block .tk-class {
+  color: #fbbf24;
+}
+
+.garage-code-block .tk-func {
+  color: #60a5fa;
+}
+
+.garage-code-block .tk-variable {
+  color: #f472b6;
+}
+
+.garage-code-block .tk-property {
+  color: #5eead4;
+}
+
+/* ═══════════════════════════════════════════════
+   Chat UI — Inter font for messages
+   ═══════════════════════════════════════════════ */
+.chat-font {
+  font-family: var(--font-chat), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ═══════════════════════════════════════════════
+   Screen capture protection
+   ═══════════════════════════════════════════════ */
+.screen-capture-protected {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Blur chat content when printing (prevents print-screen capture) */
+@media print {
+  .screen-capture-protected {
+    filter: blur(20px) !important;
+    opacity: 0.3 !important;
+  }
+}
+
+/* Allow text selection inside input/textarea within protected areas */
+.screen-capture-protected textarea,
+.screen-capture-protected input {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* BlockNote overrides for borderless editor layout inside Notes (Thoughts) application */
+.garage-notes-editor .bn-container,
+.garage-notes-editor .bn-editor,
+.garage-notes-editor .bn-editor-content,
+.garage-notes-editor .bn-editor-wrapper {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Remove default focus borders for BlockNote editor components inside Notes (Thoughts) application */
+.garage-notes-editor .bn-editor [contenteditable="true"]:focus,
+.garage-notes-editor .bn-editor [contenteditable="true"]:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Custom Notion-like placeholder for BlockNote editor empty blocks */
+.garage-notes-editor .bn-inline-content[data-placeholder]::before,
+.garage-notes-editor [data-placeholder]::before,
+.garage-notes-editor [data-content-placeholder]::before,
+.garage-notes-editor .is-empty::before,
+.garage-notes-editor .bn-editor [data-placeholder]::before,
+.garage-notes-editor .bn-editor [data-content-placeholder]::before,
+.garage-notes-editor .bn-editor-content [data-placeholder]::before {
+  content: "Press 'space' for AI or '/' for commands" !important;
+  color: rgba(255, 255, 255, 0.3) !important;
+  opacity: 1 !important;
+}
+
+/* Custom styling for the title textarea inside Notes (Thoughts) to match Notion */
+.garage-notes-title-textarea,
+.thoughts-inline-shell textarea.garage-notes-title-textarea {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 54px !important;
+  resize: none !important;
+  color: #ffffff !important;
+  font-size: 45px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  min-height: 60px !important;
+}
+
+.garage-notes-title-textarea::placeholder,
+.thoughts-inline-shell textarea.garage-notes-title-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.15) !important;
+  font-size: 45px !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 768px) {
+
+  .garage-notes-title-textarea,
+  .thoughts-inline-shell textarea.garage-notes-title-textarea {
+    font-size: 36px !important;
+    min-height: 50px !important;
+  }
+
+  .garage-notes-title-textarea::placeholder,
+  .thoughts-inline-shell textarea.garage-notes-title-textarea::placeholder {
+    font-size: 36px !important;
+  }
+}
+
+/* Ensure BlockNote editor elements also have transparent background inside Notes application */
+.garage-notes-editor,
+.garage-notes-editor .bn-container,
+.garage-notes-editor .bn-editor,
+.garage-notes-editor .bn-editor-content,
+.garage-notes-editor .bn-editor-wrapper {
+  background-color: transparent !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.garage-notes-editor .bn-editor {
+  padding-left: 54px !important;
+  padding-right: 54px !important;
+}
+
+@media (max-width: 768px) {
+  .garage-notes-editor .bn-editor {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  .garage-notes-title-textarea,
+  .thoughts-inline-shell textarea.garage-notes-title-textarea {
+    padding: 0 20px !important;
+  }
+}
+
+/* BlockNote side menu and drag handle hover cursors to match Notion (hand grab option) */
+.bn-side-menu [data-drag-handle],
+.bn-side-menu .bn-drag-handle-button,
+.bn-side-menu [data-test="dragHandle"],
+[data-drag-handle] {
+  cursor: grab !important;
+  cursor: -webkit-grab !important;
+}
+
+.bn-side-menu [data-drag-handle]:active,
+.bn-side-menu .bn-drag-handle-button:active,
+.bn-side-menu [data-test="dragHandle"]:active,
+[data-drag-handle]:active {
+  cursor: grabbing !important;
+  cursor: -webkit-grabbing !important;
+}
+
+/* Fix HTML5 drag and drop inside Radix UI modals (Sheet/Dialog) by overriding body scroll/pointer locks */
+html:has(.bn-editor),
+body:has(.bn-editor) {
+  pointer-events: auto !important;
+}
+
+/* Hide native date input format text when empty (for custom placeholder) */
+.date-task-input:not(:focus)::-webkit-datetime-edit,
+.date-task-input::-webkit-datetime-edit-fields-wrapper {
+  color: transparent !important;
+}
+.date-task-input:focus::-webkit-datetime-edit,
+.date-task-input:focus::-webkit-datetime-edit-fields-wrapper {
+  color: inherit !important;
+}
+
+/* Dark date inputs: force a white calendar icon (browser-native icon color is unreliable) */
+input[type="date"] {
+  color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+[data-slot="input"][type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1 !important;
+  filter: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background-color: transparent !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 14px 14px !important;
+  width: 14px !important;
+  height: 14px !important;
+  padding: 0 !important;
+  margin-right: 0px;
+  color: transparent !important;
+}
+
+/* ── Floating webinar reactions ─────────────────────────────────────────────
+   Google-Meet-style flight path. Split across two elements on purpose: a
+   single keyframe can't animate translateY and translateX on independent
+   curves, and compositing them in one `transform` makes the sway inherit
+   the rise's easing. Outer rises + fades, inner sways.
+
+   Per-emoji values arrive as custom properties set inline by the overlay:
+     --reaction-rise   how far up to travel (px, measured from the stage)
+     --reaction-sway   -1 | 0 | 1, the direction of the first lateral swing
+*/
+
+@keyframes webinar-reaction-rise {
+  0% {
+    transform: translateY(0) scale(0.3);
+    opacity: 0;
+  }
+  4% {
+    opacity: 1;
+  }
+  /* Pop entry — overshoot, then settle. */
+  8% {
+    transform: translateY(calc(var(--reaction-rise, -78vh) * 0.06)) scale(1.2);
+    opacity: 1;
+  }
+  14% {
+    transform: translateY(calc(var(--reaction-rise, -78vh) * 0.11)) scale(1);
+  }
+  /* Long, even ascent. */
+  80% {
+    transform: translateY(calc(var(--reaction-rise, -78vh) * 0.8)) scale(1);
+    opacity: 1;
+  }
+  /* Fade out over the top 20% of the climb. */
+  100% {
+    transform: translateY(var(--reaction-rise, -78vh)) scale(0.85);
+    opacity: 0;
+  }
+}
+
+@keyframes webinar-reaction-sway {
+  0%,
+  8% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(calc(var(--reaction-sway, 1) * -16px));
+  }
+  55% {
+    transform: translateX(calc(var(--reaction-sway, 1) * 16px));
+  }
+  80% {
+    transform: translateX(calc(var(--reaction-sway, 1) * -8px));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.webinar-reaction-rise {
+  animation-name: webinar-reaction-rise;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation-fill-mode: forwards;
+  will-change: transform, opacity;
+}
+
+.webinar-reaction-sway {
+  animation-name: webinar-reaction-sway;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: forwards;
+  will-change: transform;
+}
+
+/* Reduced motion: still acknowledge the reaction, just don't fly it. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes webinar-reaction-rise {
+    0% {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    15%,
+    70% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1);
+    }
+  }
+  .webinar-reaction-sway {
+    animation: none;
+  }
+}
+
+/* Scroll region that scrolls without painting a scrollbar.
+ *
+ * components/data-table/DataTable.tsx has always put `glass-scrollbar` on its
+ * scroll container, but the class was never defined anywhere (Tailwind v4,
+ * no plugin), so every admin table rendered the default OS scrollbars over
+ * the frozen column and the sticky header. Content stays scrollable —
+ * wheel, trackpad, shift-wheel and keyboard all still work — the bar just
+ * isn't painted. */
+.glass-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+
+.glass-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* ============================================================
+   Rim light — "border lining" for the Live Streams drawers
+   ------------------------------------------------------------
+   A 1px border drawn from a gradient rather than a flat colour,
+   so the top edge catches light and the bottom fades out. On a
+   near-black panel a uniform border reads as a drawn box; this
+   reads as a physical edge, which is what makes the floating
+   cards and circular buttons look lit rather than outlined.
+
+   Implemented as a masked pseudo-element because CSS can't put a
+   gradient in `border-color`: the gradient fills the element,
+   then a two-layer mask punches out everything except the 1px
+   ring. `border-radius: inherit` means one class works on a
+   rounded card and a circle alike.
+
+   Sits at the element's own radius, so any element using it must
+   be `position: relative` (the class sets that itself).
+   ============================================================ */
+.rim-light {
+  position: relative;
+}
+
+.rim-light::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.08) 28%,
+    rgba(255, 255, 255, 0.03) 55%,
+    rgba(255, 255, 255, 0.07) 100%
+  );
+  /* Fill minus content-box = just the 1px frame. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  /* Purely decorative — must never eat a click meant for the row. */
+  pointer-events: none;
+}
+
+/* Brighter rim for the small circular controls: at 36px there's far
+   less edge to catch light, so the same alpha reads as nothing. */
+.rim-light-strong::before {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.38) 0%,
+    rgba(255, 255, 255, 0.12) 35%,
+    rgba(255, 255, 255, 0.04) 60%,
+    rgba(255, 255, 255, 0.14) 100%
+  );
+}
+
+/* Sidebar rows and section headers that carry the right-click menu
+   (SidebarContextMenu). Not selectable: a secondary click on macOS, or a
+   long-press on Android, would otherwise select the word under the pointer
+   as the menu opens. */
+[data-nav-popover],
+[data-nav-group] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The row whose menu is open stays marked, as with a native context menu. */
+[data-nav-popover][data-context-menu-open],
+[data-nav-group][data-context-menu-open] {
+  background-color: #15151b;
+  box-shadow: inset 0 0 0 1px #3b3b4a;
+}
+
+/* Frosted checkbox for dark tables and forms. Unchecked is a translucent
+   glass square instead of the browser's white box; checked fills with the
+   office's brand colour and draws the tick in --brand-foreground so it
+   stays readable on dark and light brand colours alike. */
+.glass-check {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.glass-check::before {
+  content: "";
+  width: 0.625rem;
+  height: 0.625rem;
+  background: var(--brand-foreground);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: scale(0);
+  transition: transform 0.12s ease;
+}
+.glass-check:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+}
+.glass-check:checked {
+  border-color: var(--brand);
+  background: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+.glass-check:checked::before {
+  transform: scale(1);
+}
+.glass-check:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand) 60%, transparent);
+  outline-offset: 2px;
+}
+.glass-check:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

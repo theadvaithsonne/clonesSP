@@ -1,0 +1,10 @@
+/** Shared accent theme for timesheet surfaces */
+export const TS_ACCENT = "var(--brand)"
+export const TS_ACCENT_DARK = "color-mix(in srgb, var(--brand) 80%, black)"
+export const TS_ACCENT_DEEP = "color-mix(in srgb, var(--brand) 67%, black)"
+export const TS_ON_ACCENT = "var(--brand-foreground)"
+export const TS_ACCENT_SOFT_BG = "color-mix(in srgb, var(--brand) 16%, #0a0a0a)"
+export const TS_ACCENT_SOFT_BG_HOVER = "color-mix(in srgb, var(--brand) 24%, #0a0a0a)"
+export const TS_ACCENT_BORDER = "color-mix(in srgb, var(--brand) 48%, black)"
+export const TS_ACCENT_RGBA_12 = "color-mix(in srgb, var(--brand) 12%, transparent)"
+export const TS_ACCENT_RGBA_04 = "color-mix(in srgb, var(--brand) 4%, transparent)"

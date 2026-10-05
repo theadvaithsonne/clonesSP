@@ -1,0 +1,2529 @@
+"use client"
+
+import type { Card, Column } from "./Dashbaord"
+import {
+  X, Trash2, Tag, Users, Calendar, CheckSquare, Paperclip, Plus, PlayCircle, Flag,
+  AlignLeft, Check, Copy, Archive, Clock, CreditCard, ChevronDown, CalendarRange, Download, Eye, ChevronLeft
+} from "lucide-react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
+import { CardActivity } from "./card-activity"
+import { CardAttachments, type Attachment } from "./card-attachments"
+import { useMemberStore } from "@/store/athena/memberStore"
+import { useCardStore } from "@/store/athena/cardStore"
+import { useTaskStore } from "@/store/athena/taskStore"
+import { useTagStore } from "@/store/athena/tagStore"
+import { useBoardStore } from "@/store/athena/boardStore"
+import { format } from "date-fns"
+import Cookies from "js-cookie";
+import { useChecklistStore } from "@/store/athena/checklistStore"
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { formatDistanceToNowStrict, isPast } from "date-fns";
+import { enIN } from "date-fns/locale";
+type CommentItem = {
+  _id: string
+  userId?: {
+    _id?: string;
+    name?: string
+    email?: string
+  }
+  userName?: string
+  userAvatarUrl?: string
+  comment: string
+  createdAt?: string
+  updatedAt?: string
+}
+interface CardModalProps {
+  card: Card
+  columnId?: string
+  boardId: string
+  orgId: string
+  onClose: () => void
+  setColumns: React.Dispatch<React.SetStateAction<Column[]>>
+  userId: string | undefined
+  isReadOnly?: boolean
+  connected: boolean
+  updateTaskAndCardCounts: (newChildCount: number, newCompletedChildCount: number, taskId: string, cardId: string) => void
+
+}
+
+interface ChecklistItem {
+  id: string
+  text: string
+  completed: boolean
+}
+
+const LABEL_COLORS = [
+  "bg-blue-600",
+  "bg-green-600",
+  "bg-yellow-500",
+  "bg-orange-500",
+  "bg-red-600",
+  "bg-purple-600",
+  "bg-pink-500",
+  "bg-indigo-600",
+  "bg-cyan-600",
+  "bg-lime-600",
+]
+
+export function CardModal({ card, connected, boardId, userId, updateTaskAndCardCounts, onClose, setColumns, isReadOnly }: CardModalProps) {
+  const { members: boardMembers, fetchMembers, cardMembers, removeMembersForCards, fetchMembersForCards, removeAssignedMember, fetchAssignForCards, setAssignedMembers, assignCardMemberlist, isLoadingAssign } = useMemberStore()
+  const { updateCard, deleteCard, toggleComplete } = useCardStore()
+  const [showExpiredDialog, setShowExpiredDialog] = useState(false)
+  const router = useRouter()
+
+  const [cardName, setCardName] = useState(card.name)
+  const [descValue, setDescValue] = useState(card.description || "")
+  const [isEditingDesc, setIsEditingDesc] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  console.log("card", card)
+  const { createTag, updateTag: updateTagApi, deleteTag: deleteTagApi } = useTagStore()
+  const {
+    tasks: taskchild,
+    tasks: cardTasks,
+    fetchTasks,
+    createTask,
+    deleteTask,
+    hasMore: hasMoreTasks,
+    currentPage: tasksCurrentPage,
+    isLoading: isTasksLoading,
+    isCreatingTask
+  } = useTaskStore()
+  const { tags: boardTags, decrementCardCount } = useBoardStore();
+
+  // Helper function to update card TaskDataCount based on all tasks
+  const updateCardTaskCounts = () => {
+    const totalChildCount = cardTasks.reduce((sum, t) => sum + (t.childCount || 0), 0)
+    const totalCompletedChildCount = cardTasks.reduce((sum, t) => sum + (t.completedChildCount || 0), 0)
+
+    setColumns(prev => prev.map(col => ({
+      ...col,
+      cards: col.cards.map(c =>
+        c._id === card._id
+          ? {
+            ...c,
+            TaskDataCount: {
+              totalChildCount,
+              totalCompletedChildCount
+            }
+          }
+          : c
+      )
+    })))
+  }
+  console.log("cxzjcxzhj7248", taskchild)
+
+
+
+  const [searchLabel, setSearchLabel] = useState("")
+  const [isCreatingLabel, setIsCreatingLabel] = useState(false)
+  const [isEditingLabel, setIsEditingLabel] = useState(false)
+  const [editingTagId, setEditingTagId] = useState<string | null>(null)
+
+  const [newLabelName, setNewLabelName] = useState("")
+  const [selectedColor, setSelectedColor] = useState(LABEL_COLORS[0])
+  const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false)
+  const [isDatesPopoverOpen, setIsDatesPopoverOpen] = useState(false)
+  const [isTagLoading, setIsTagLoading] = useState(false)
+  const [fetchedTagData, setFetchedTagData] = useState<Array<{ _id: string; name: string; color: string }>>([])
+  const [isFetchingTags, setIsFetchingTags] = useState(false)
+
+  // Checklist state from store
+  const { checklistItems, fetchChecklistItems, createChecklistItem, updateChecklistItem, deleteChecklistItem } = useChecklistStore()
+
+  // Local state for sidebar popover
+  const [isChecklistPopoverOpen, setIsChecklistPopoverOpen] = useState(false)
+  const [newTaskName, setNewTaskName] = useState("")
+  useEffect(() => {
+    if (card._id) {
+      // Initial load - page 1, replace any previous tasks
+      fetchTasks(card._id, 1, false)
+    }
+  }, [card._id])
+
+
+
+  // Update card counts whenever tasks change
+  useEffect(() => {
+    const totalChildCount = cardTasks.reduce((sum, t) => sum + (t.childCount || 0), 0)
+    const totalCompletedChildCount = cardTasks.reduce((sum, t) => sum + (t.completedChildCount || 0), 0)
+
+    setColumns(prev => prev.map(col => ({
+      ...col,
+      cards: col.cards.map(c =>
+        c._id === card._id
+          ? {
+            ...c,
+            TaskDataCount: {
+              totalChildCount,
+              totalCompletedChildCount
+            }
+          }
+          : c
+      )
+    })))
+  }, [cardTasks, card._id, setColumns])
+
+
+
+  // Infinite scroll handler - based on card modal scroll
+  const handleTaskScroll = (e: any) => {
+    // Only load more when:
+    // - There are more pages
+    // - Not already loading
+    if (!hasMoreTasks || isTasksLoading) return
+
+    const target = e.currentTarget
+    const nearBottomThreshold = 100 // px from bottom
+
+    const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight
+    if (distanceFromBottom < nearBottomThreshold) {
+      // Fetch next page and append
+      fetchTasks(card._id, tasksCurrentPage + 1, true)
+    }
+  }
+
+  const [attachments, setAttachments] = useState<Attachment[]>(() => {
+    // Initialize from card.attachments if available
+    if (card.attachments && Array.isArray(card.attachments)) {
+      return card.attachments as Attachment[]
+    }
+    return []
+  })
+
+  const [showAttachments, setShowAttachments] = useState(false)
+  const [isMembersLoading, setIsMembersLoading] = useState(false)
+  const [togglingMemberIds, setTogglingMemberIds] = useState<Set<string>>(new Set())
+  const [memberSearchTerm, setMemberSearchTerm] = useState("")
+  const [searchedMembers, setSearchedMembers] = useState<any[]>([])
+  const [isSearchingMembers, setIsSearchingMembers] = useState(false)
+
+  const blockIfReadOnly = () => {
+    if (!isReadOnly) return false
+    toast.error("Observers can only view cards")
+    return true
+  }
+
+  const parseDateValue = (value?: string | number) => {
+    if (!value) return undefined
+    const parsed = new Date(value)
+    return isNaN(parsed.getTime()) ? undefined : parsed
+  }
+
+  const [startDate, setStartDate] = useState<Date | undefined>(() => parseDateValue(card?.startDate))
+  const [dueDate, setDueDate] = useState<Date | undefined>(() => parseDateValue(card.dueDate))
+  const [isStartDateEnabled, setIsStartDateEnabled] = useState(() => Boolean(parseDateValue(card?.startDate)))
+  const [hasDueDate, setHasDueDate] = useState(() => Boolean(parseDateValue(card.dueDate)))
+  const [isSavingDates, setIsSavingDates] = useState(false)
+  const [reminder, setReminder] = useState("1 day before")
+  const [assignlistData, setassignlistData] = useState([])
+  const [isCompleted, setIsCompleted] = useState(card.isCompleted || false)
+
+
+  useEffect(() => {
+    fetchAssignForCards(card?._id)
+  }, [fetchAssignForCards])
+
+  // Search members function
+  const searchMembers = useCallback(async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setSearchedMembers([])
+      return
+    }
+
+    setIsSearchingMembers(true)
+    try {
+      const token = Cookies.get("auth-token")
+      if (!token) {
+        toast.error("Authentication token missing")
+        return
+      }
+
+      const response = await fetch(
+        `https://uatapi.garage.app/flowboard/v1/cards/${card._id}/members?size=50&search=${encodeURIComponent(searchTerm)}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok || data.status === false) {
+        throw new Error(data.message || "Failed to search members")
+      }
+
+      // Normalize member data structure to match expected format
+      const normalizedMembers = (data?.data || []).map((member: any) => {
+        // Handle different API response structures
+        if (member.userData) {
+          return {
+            _id: member.userData._id || member._id,
+            id: member.userData._id || member._id,
+            name: member.userData.name || member.name,
+            email: member.userData.email || member.email,
+            userId: member.userData._id || member._id,
+          }
+        }
+        return {
+          _id: member._id,
+          id: member._id || member.id,
+          name: member.name,
+          email: member.email,
+          userId: member._id || member.userId,
+        }
+      })
+
+      setSearchedMembers(normalizedMembers)
+    } catch (error) {
+      console.error("Error searching members:", error)
+      toast.error("Failed to search members")
+      setSearchedMembers([])
+    } finally {
+      setIsSearchingMembers(false)
+    }
+  }, [card._id])
+
+  // Debounce search function
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (memberSearchTerm.trim()) {
+        searchMembers(memberSearchTerm)
+      } else {
+        setSearchedMembers([])
+      }
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [memberSearchTerm, searchMembers])
+
+  useEffect(() => {
+    setDescValue(card.description || "")
+  }, [card.description])
+
+  useEffect(() => {
+    setCardName(card.name)
+  }, [card.name])
+
+  useEffect(() => {
+    setIsCompleted(card.isCompleted || false)
+  }, [card.isCompleted])
+
+  useEffect(() => {
+    // Sync attachments when card changes
+    if (card.attachments && Array.isArray(card.attachments)) {
+      setAttachments(card.attachments as Attachment[])
+    } else {
+      setAttachments([])
+    }
+  }, [card.attachments])
+
+  useEffect(() => {
+    const nextStart = parseDateValue(card.startDate)
+    const nextDue = parseDateValue(card.dueDate)
+    setStartDate(nextStart)
+    setIsStartDateEnabled(Boolean(nextStart))
+    setDueDate(nextDue)
+    setHasDueDate(Boolean(nextDue))
+  }, [card.startDate, card.dueDate])
+
+  useEffect(() => {
+    const fetchTags = async () => {
+      setFetchedTagData([])
+      setIsFetchingTags(true)
+      try {
+        const token = Cookies.get("auth-token");
+        const response = await fetch(
+          `https://uatapi.garage.app/flowboard/v1/tags?boardId=${boardId}&size=100`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await response.json();
+        if (!response.ok || data.status === false) throw new Error(data.message || "Failed");
+        setFetchedTagData(data?.data)
+      } catch (error) {
+        console.error(`Error fetching tag:`, error)
+      } finally {
+        setIsFetchingTags(false)
+      }
+    }
+
+    if (isLabelPopoverOpen) fetchTags()
+  }, [isLabelPopoverOpen, boardId])
+
+  const handleCommentCountChange = (diff: number) => {
+    setColumns(prev => prev.map(col => ({
+      ...col,
+      cards: col.cards.map(c => {
+        if (c._id === card._id) {
+          return { ...c, commentCount: (c.commentCount || 0) + diff }
+        }
+        return c
+      })
+    })))
+  }
+  const handleToggleComplete = async () => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    const newStatus = !isCompleted
+    try {
+      setIsCompleted(newStatus) // Optimistic local
+      await toggleComplete(card._id, newStatus, undefined, undefined)
+      setColumns(prev => prev.map(col => ({
+        ...col,
+        cards: col.cards.map(c => c._id === card._id ? { ...c, isCompleted: newStatus } : c)
+      })));
+      toast.success(newStatus ? "Marked as complete" : "Marked as incomplete")
+    } catch (error) {
+      console.error("Failed to toggle complete", error)
+      setIsCompleted(!newStatus) // Revert
+      toast.error("Failed to update status")
+    }
+  }
+
+  const toggleMember = async (member: any) => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    const memberId = member?._id;
+    if (togglingMemberIds.size > 0) return
+
+    setTogglingMemberIds(prev => new Set(prev).add(memberId))
+
+    try {
+      const currentIds = (assignCardMemberlist || []).map((m: any) => {
+        if (typeof m === 'string') return m;
+        return m.assignedToIds || m.userId || m._id;
+      }).filter(Boolean);
+
+      const newIds = Array.from(new Set([...currentIds, memberId]));
+
+      const apiPayload = [...(assignCardMemberlist.map(member => member._id) || []), memberId];
+      console.log("memberId13zc", apiPayload)
+      const socketId = undefined;
+      const notificationSocketId = undefined;
+      await updateCard(card._id, { assignedToIds: apiPayload as any, socketId, userAssignedToIds: member?._id })
+      removeMembersForCards(memberId)
+      console.log("zxcczxcrwe", [...(assignCardMemberlist || []), member])
+      // Optimistic UI update
+      setAssignedMembers([...(assignCardMemberlist || []), member]);
+
+      setColumns(prev => prev.map(col => ({
+        ...col,
+        cards: col.cards.map(c => {
+          if (c._id === card._id) {
+            const newMemberObj = { _id: memberId, name: member?.name, email: member?.email, userId: memberId };
+            const currentMembers = (c.members || []).filter(m => m._id !== memberId);
+            return { ...c, members: [...currentMembers, newMemberObj], assignedToIds: apiPayload as any };
+          }
+          return c;
+        })
+      })));
+    } catch (error) {
+      console.error("Error toggling member:", error)
+      toast.error("Failed to toggle member")
+    } finally {
+      setTogglingMemberIds(prev => {
+        const next = new Set(prev)
+        next.delete(memberId)
+        return next
+      })
+    }
+  }
+
+  const handleDelete = async () => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    if (confirm("Are you sure you want to delete this card?")) {
+      await deleteCard(card._id, card.stageId)
+      setColumns((prev) => prev.map((col) => {
+        if (col._id === card.stageId) {
+          // Remove card and decrement count
+          return {
+            ...col,
+            cards: col.cards.filter((c) => c._id !== card._id),
+            localCardCount: Math.max((col.localCardCount || 0) - 1, 0)
+          }
+        }
+        return col
+      }))
+      decrementCardCount(boardId);
+      onClose()
+    }
+  }
+
+  const handleSaveDesc = async () => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    if (descValue !== card.description) {
+      const socketId = undefined;
+
+      await updateCard(card._id, { description: descValue, socketId })
+      setColumns((prev) => prev.map((col) => ({
+        ...col,
+        cards: col.cards.map((c) => c._id === card._id ? { ...c, description: descValue } : c)
+      })));
+    }
+    setIsEditingDesc(false)
+  }
+
+  const currentTagIds = card?.tags || [];
+  const displayTagData = (card.tagData || [])
+  const [togglingTagId, setTogglingTagId] = useState<string | null>(null);
+  console.log("currentTagIds", card)
+  const formatInputDate = (date?: Date) => date ? format(date, "yyyy-MM-dd") : ""
+  const toStartOfDayMs = (date: Date) => {
+    const copy = new Date(date)
+    copy.setHours(0, 0, 0, 0)
+    return copy.getTime()
+  }
+  const toEndOfDayMs = (date: Date) => {
+    const copy = new Date(date)
+    copy.setHours(23, 59, 59, 999)
+    return copy.getTime()
+  }
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const applyDateUpdate = async (payload: { startDate: number | null; dueDate: number | null }) => {
+    const socketId = undefined;
+
+    await updateCard(card._id, { ...payload, socketId } as any)
+
+    const nextStart = payload.startDate ?? undefined
+    const nextDue = payload.dueDate ?? undefined
+
+
+    //  setColumns(prev => prev.map(col => ({
+    //     ...col,
+    //     cards: col.cards.map(c => ({
+    //       ...c,
+    //  startDate: nextStart,
+    //     dueDate: nextDue
+    //     }))
+    //   })));
+    setColumns(prev => prev.map(col => ({
+      ...col,
+      cards: col.cards.map(c => c._id === card._id ? {
+        ...c,
+        startDate: nextStart,
+        dueDate: nextDue
+      } : c)
+    })))
+  }
+
+  const handleSaveDates = async () => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    if (isStartDateEnabled && !startDate) {
+      toast.error("Start date is required")
+      return
+    }
+    if (hasDueDate && !dueDate) {
+      toast.error("Due date is required")
+      return
+    }
+    if (startDate && dueDate && dueDate < startDate) {
+      toast.error("Due date cannot be earlier than start date")
+      return
+    }
+
+    const payload = {
+      startDate: isStartDateEnabled && startDate ? toStartOfDayMs(startDate) : null,
+      dueDate: hasDueDate && dueDate ? toEndOfDayMs(dueDate) : null
+    }
+
+    setIsSavingDates(true)
+    try {
+      await applyDateUpdate(payload)
+    } catch (error) {
+      console.error("Failed to save dates", error)
+      toast.error("Failed to update dates")
+    } finally {
+      setIsSavingDates(false)
+    }
+  }
+
+  const handleRemoveDates = async () => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    setStartDate(undefined)
+    setDueDate(undefined)
+    setIsStartDateEnabled(false)
+    setHasDueDate(false)
+
+    setIsSavingDates(true)
+    try {
+      await applyDateUpdate({ startDate: null, dueDate: null })
+    } catch (error) {
+      console.error("Failed to remove dates", error)
+      toast.error("Failed to remove dates")
+    } finally {
+      setIsSavingDates(false)
+    }
+  }
+
+  const handleToggleTag = async (tag) => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    if (!tag._id || togglingTagId) return;
+    const isSelected = displayTagData.some(t => t._id === tag._id);
+    if (isSelected) { toast.error("Already this label is selected"); return; }
+
+    const newTagIds = [...currentTagIds, tag._id!];
+    setTogglingTagId(tag._id);
+
+    try {
+      const socketId = undefined;
+
+      await updateCard(card._id, { tags: newTagIds, socketId, tagItemIds: tag._id } as any)
+      setColumns(prev => prev.map(col => {
+        if (col._id === card.stageId) {
+          return {
+            ...col,
+            cards: col.cards.map(c => {
+              if (c._id === card._id) {
+                return {
+                  ...c,
+                  tags: newTagIds,
+                  tagData: [...(c.tagData || []), { _id: tag._id!, name: tag.name, color: tag.color }]
+                }
+              }
+              return c
+            })
+          }
+        }
+        return col
+      }))
+    } catch (error) {
+      console.error("Error toggling tag:", error);
+      toast.error("Failed to update tag");
+    } finally {
+      setTogglingTagId(null);
+    }
+  }
+
+
+
+  const handleCreateLabel = async () => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    if (!newLabelName.trim()) return
+    setIsTagLoading(true)
+
+    if (isEditingLabel && editingTagId) {
+      const renamedTag = { _id: editingTagId, name: newLabelName.trim(), color: selectedColor };
+      if (fetchedTagData.length > 0) {
+        setFetchedTagData(fetchedTagData.map(t => t._id === editingTagId ? { ...t, name: renamedTag.name, color: renamedTag.color } : t))
+      }
+      await updateTagApi(editingTagId, { name: newLabelName.trim(), color: selectedColor, socketId: undefined });
+
+      setColumns(prev => prev.map(col => ({
+        ...col,
+        cards: col.cards.map(c => {
+          const hasTag = (c.tagData || []).some(t => t._id === editingTagId);
+          if (hasTag) {
+            return {
+              ...c,
+              tagData: c.tagData.map(t => t._id === editingTagId ? { ...t, name: renamedTag.name, color: renamedTag.color } : t)
+            }
+          }
+          return c;
+        })
+      })));
+
+      setIsEditingLabel(false);
+      setEditingTagId(null);
+    } else {
+      const socketId = undefined;
+      const newTag = await createTag({ boardId, name: newLabelName.trim(), color: selectedColor, socketId: socketId })
+      if (newTag) {
+        setFetchedTagData([...fetchedTagData, { _id: newTag._id, name: newTag.name, color: newTag.color }])
+      }
+    }
+
+    setNewLabelName("")
+    setIsCreatingLabel(false)
+    setIsTagLoading(false)
+  }
+
+  const startEditLabel = (tag: any) => {
+    if (blockIfReadOnly()) return
+    setNewLabelName(tag.name);
+    setSelectedColor(tag.color);
+    setEditingTagId(tag._id);
+    setIsEditingLabel(true);
+    setIsCreatingLabel(true);
+  }
+
+  const handleDeleteTag = async (id: string) => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    if (confirm("Delete this label?")) {
+      setIsTagLoading(true)
+      if (fetchedTagData.length > 0) {
+        setFetchedTagData(fetchedTagData.filter(t => t._id !== id))
+      }
+      // if (boardSocketService.socketId !== null) {
+      //   await deleteTagApi(id, boardSocketService.socketId);
+      // }
+      setColumns(prev => prev.map(col => ({
+        ...col,
+        cards: col.cards.map(c => ({
+          ...c,
+          tags: (c.tags || []).filter(tid => tid !== id),
+          tagData: (c.tagData || []).filter(t => t._id !== id)
+        }))
+      })));
+      setIsTagLoading(false)
+      setIsCreatingLabel(false)
+      setIsLabelPopoverOpen(false)
+    }
+  }
+
+  const handleSaveAttachments = async (newAttachments: Attachment[]) => {
+    if (blockIfReadOnly()) return
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    try {
+      const token = Cookies.get("auth-token")
+      if (!token) {
+        toast.error("Authentication token missing")
+        return
+      }
+
+      // Prepare attachments payload (only fileLink, fileName, fileType)
+      const attachmentsPayload = newAttachments.map((att) => ({
+        fileLink: att.fileLink,
+        fileName: att.fileName,
+        fileType: att.fileType,
+      }))
+
+      // POST to bulk files endpoint
+      const response = await fetch("https://uatapi.garage.app/flowboard/v1/files/bulk", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          boardId,
+          cardId: card._id,
+          attachments: attachmentsPayload,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || data.status === false) {
+        toast(data.message || "Failed to save attachments")
+      }
+
+      // Update local state
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) =>
+            c._id === card._id ? { ...c, attachments: newAttachments } : c
+          ),
+        }))
+      )
+
+      toast.success("Attachments saved successfully")
+    } catch (error) {
+      console.error("Failed to save attachments:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to save attachments")
+    }
+  }
+
+  const checklistProgress = checklistItems.length > 0
+    ? Math.round((checklistItems.filter(i => i.isCompleted).length / checklistItems.length) * 100)
+    : 0
+  const avatarColors = [
+    "bg-gradient-to-br from-gray-800 to-gray-900",
+    "bg-gradient-to-br from-gray-900 to-black",
+    "bg-gradient-to-br from-zinc-800 to-zinc-950",
+    "bg-gradient-to-br from-neutral-800 to-neutral-900",
+    "bg-gradient-to-br from-slate-700 to-slate-900",
+    "bg-gradient-to-br from-gray-900 to-gray-950",
+  ]
+
+  // Handle clicking outside inputs/textareas to remove focus
+  const handleModalClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    // If clicking on input, textarea, button, or their containers, don't blur
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'BUTTON' ||
+      target.closest('input') ||
+      target.closest('textarea') ||
+      target.closest('button') ||
+      target.closest('[role="button"]')
+    ) {
+      return;
+    }
+    // Blur any active element
+    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+      (document.activeElement as HTMLElement).blur();
+    }
+  };
+  console.log("czxjkhczuyg3214", card)
+  function getDueDateWithStatus(dueDate) {
+    if (!dueDate) return { text: "No due date", isOverdue: false };
+
+    const ts = Number(dueDate);
+    if (isNaN(ts)) return { text: "Invalid date", isOverdue: false };
+
+    const due = new Date(ts);
+    const now = new Date();
+
+    const formatted = due.toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    const isOverdue = due < now;
+
+    let text = formatted;
+    if (isOverdue) {
+      text += " (overdue)";
+    }
+
+    return { text, isOverdue };
+  }
+  const { text, isOverdue } = getDueDateWithStatus(card?.dueDate);
+  return (
+
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 py-10" onClick={onClose}
+    >
+      <Dialog open={showExpiredDialog} onOpenChange={setShowExpiredDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Session Expired</DialogTitle>
+            <DialogDescription>
+              Your session has expired. Please log in again to continue.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => router.push("/login")}>
+              Login
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <div
+        className="rounded-lg w-full max-w-[50vw] h-[80vh] overflow-y-auto shadow-2xl relative outline-none  bg-[#111116] text-white/50
+  border border-[#e5e7eb29] 0 backdrop-blur-md   p-0"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleModalClick(e);
+        }}
+        onScroll={handleTaskScroll}
+        tabIndex={-1}
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-2 top-2 p-2 text-white/50 hover:bg-gray-200 rounded-full transition z-10"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Modal Header */}
+        <div className="px-8 pt-6 pb-2 mb-2">
+          <div className="flex items-start gap-4 mb-1">
+
+            {/* <div className="flex items-center gap-3">
+            
+              <h2 className="text-xl font-semibold text-foreground">Design System Implementation</h2>
+            </div> */}
+
+
+            {/* <div className="min-w-1 min-h-8 rounded-full bg-#e6eaef" /> */}
+            <div className="flex-1">
+              <div className="flex-1">
+                <input
+                  value={cardName}
+                  onChange={(e) => setCardName(e.target.value)}
+                  onBlur={async () => {
+                    if (blockIfReadOnly()) return;
+                    const token = Cookies.get("auth-token")
+                    if (token) {
+                      try {
+                        const payload = JSON.parse(atob(token.split('.')[1]))
+                        if (payload.exp) {
+                          const currentTime = Math.floor(Date.now() / 1000)
+                          if (currentTime >= payload.exp) {
+                            setShowExpiredDialog(true)
+                            return
+                          }
+                        }
+                      } catch (e) {
+                        console.error("Failed to decode token", e)
+                      }
+                    }
+                    if (cardName !== card.name) {
+                      const socketId = undefined;
+                      await updateCard(card._id, { name: cardName, socketId });
+                      // Optimistic update
+                      setColumns((prev) =>
+                        prev.map((col) => ({
+                          ...col,
+                          cards: col.cards.map((c) =>
+                            c._id === card._id ? { ...c, name: cardName } : c
+                          ),
+                        }))
+                      );
+                    }
+                  }}
+                  disabled={isReadOnly}
+                  className="
+      w-full text-lg font-bold 
+      text-white/50 dark:text-white/50
+      bg-transparent 
+      outline-none
+      border-b border-transparent 
+      focus:border-transparent 
+      focus:ring-0 focus:outline-none focus:shadow-none
+      transition-colors
+      placeholder-gray-400
+      whitespace-normal          /* ← key: allow wrapping */
+      break-words                /* break very long words if needed */
+      min-h-[1.75rem]            /* give it some vertical room; adjust as needed */
+    "
+                  placeholder="Card Title"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Grid Layout */}
+        <div className="px-8 pb-8 grid grid-cols-1 md:grid-cols-[1fr_192px] gap-8">
+
+          {/* LEFT COLUMN */}
+          <div className="space-y-6 min-w-0">
+
+            {/* Meta Data Row */}
+
+
+        <div className="flex flex-wrap gap-6 ">
+              {isLoadingAssign ? (
+                <div>
+                  <div className="flex items-center mb-2 gap-2 text-xs font-medium text-white/50">
+                    <Users className="h-4 w-4" />
+                    <span>Members</span>
+                  </div>
+                  <div className="flex gap-1">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="w-8 h-8 rounded-full" />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                assignCardMemberlist.length > 0 && (
+                  <div>
+                    <div className="flex items-center mb-2 gap-2 text-xs font-medium text-white/50">
+                      <Users className="h-4 w-4" />
+                      <span>Members</span>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {assignCardMemberlist.map((m, i) => {
+                        const initials = m?.name
+                          ? m?.name
+                            .split(" ")
+                            .slice(0, 2)
+                            .map((n) => n[0]?.toUpperCase())
+                            .join("")
+                          : "?"
+                        const memberId = m?._id;
+
+                        return (
+                          <div
+                            key={memberId} // Prefer stable ID over index
+                            className="relative group"
+                          >
+                            {/* Avatar */}
+                            <div
+                              className="bg-blue-900 dark:bg-blue-900 text-white/50text-xs font-bold w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+                              title={m.name || m.email}
+                            >
+                              {initials}
+                            </div>
+
+                            {/* Delete Icon on Hover */}
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (blockIfReadOnly()) return
+                                const token = Cookies.get("auth-token")
+                                if (token) {
+                                  try {
+                                    const payload = JSON.parse(atob(token.split('.')[1]))
+                                    if (payload.exp) {
+                                      const currentTime = Math.floor(Date.now() / 1000)
+                                      if (currentTime >= payload.exp) {
+                                        setShowExpiredDialog(true)
+                                        return
+                                      }
+                                    }
+                                  } catch (e) {
+                                    console.error("Failed to decode token", e)
+                                  }
+                                }
+                                if (!confirm(`Remove ${m.name || m.email} from this card?`)) return;
+
+                                try {
+                                  // Remove from backend
+                                  const updatedIds = assignCardMemberlist
+                                    .filter((mem) => (mem._id || mem.userId) !== memberId)
+                                    .map((mem) => mem._id);
+                                  const socketId = undefined;
+                                  await updateCard(card._id, { assignedToIds: updatedIds as any, socketId, userRemoveAssignedToIds: m?._id });
+
+                                  // Optimistic UI update via store
+                                  if (memberId) { removeAssignedMember(memberId); }
+
+                                  setColumns(prev =>
+                                    prev.map(col => ({
+                                      ...col,
+                                      cards: col.cards.map(c =>
+                                        c._id === card._id
+                                          ? {
+                                            ...c,
+                                            // tags: newTagIds,
+                                            assignedToIds: (c.assignedToIds || []).filter(
+                                              id => id !== memberId
+                                            ),
+                                            members: (c.members || []).filter(
+                                              (mem) => (mem._id) !== memberId
+                                            ),
+                                          }
+                                          : c
+                                      ),
+                                    }))
+                                  );
+
+                                  toast.success("Member removed");
+                                } catch (err) {
+                                  toast.error("Failed to remove member");
+                                }
+                              }}
+                              className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity
+                          bg-gray-700 hover:bg-gray-700 text-white/50rounded-full w-5 h-5
+                          flex items-center justify-center text-xs font-bold shadow-md"
+                              title="Remove member"
+                              style={{
+                                zIndex: 99
+                              }}
+                            >
+                              <X className="w-3 h-3" style={{
+                                zIndex: 99
+                              }} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                ))}
+
+
+            </div>
+
+
+
+            {(card?.tagData?.length > 0) && (
+              <div className="max-w-full ">
+                <div className="flex items-center mb-2 gap-2 text-xs font-medium text-white/50">
+                  <Tag className="h-4 w-4" />
+                  <span>Labels</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {card?.tagData.map((l, i) => (
+                    <div
+                      key={i}
+                      className="group relative inline-flex items-center word-break max-w-full "
+                    >
+                      <span
+                        className={`${l.color} text-white/50px-3 py-1 rounded-lg text-xs font-medium truncate max-w-full`}
+                        title={l.name}
+                      >
+                        {l.name}
+                      </span>
+
+                      {/* Delete icon appears on hover */}
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (blockIfReadOnly()) return
+                          const token = Cookies.get("auth-token")
+                          if (token) {
+                            try {
+                              const payload = JSON.parse(atob(token.split('.')[1]))
+                              if (payload.exp) {
+                                const currentTime = Math.floor(Date.now() / 1000)
+                                if (currentTime >= payload.exp) {
+                                  setShowExpiredDialog(true)
+                                  return
+                                }
+                              }
+                            } catch (e) {
+                              console.error("Failed to decode token", e)
+                            }
+                          }
+                          if (confirm(`unSelected label "${l.name}" from this card?`)) {
+                            // Remove this tag ID from the card's tags array
+                            const newTagIds = (card.tags || []).filter((tid: string) => tid !== l._id);
+                            console.log("newTagIds", newTagIds)
+                            try {
+                              await updateCard(card._id, { tags: [...newTagIds] });
+
+                              // Optimistically update the columns state
+                              setColumns(prev =>
+                                prev.map(col => ({
+                                  ...col,
+                                  cards: col.cards.map(c =>
+                                    c._id === card._id
+                                      ? {
+                                        ...c,
+                                        tags: newTagIds,
+                                        tagData: (c.tagData || []).filter((t: any) => t._id !== l._id),
+                                      }
+                                      : c
+                                  ),
+                                }))
+                              );
+
+                              toast.success("Label unSelected");
+                            } catch (err) {
+                              toast.error("Failed to remove label");
+                            }
+                          }
+                        }}
+                        className="absolute -right-2 tmr-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-700 hover:bg-gray-700 rounded-full p-1"
+                        title="Remove label"
+                        style={{
+                          top: "-10px",
+                          zIndex: 99
+                        }}
+                      >
+                        <X className="w-3 h-3 text-white" style={{
+
+
+                          zIndex: 99
+                        }} />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Optional: Add label button (uncomment if needed) */}
+                  {/* <button className="h-8 w-8 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-white/50">
+        <Plus className="w-4 h-4" />
+      </button> */}
+                </div>
+              </div>
+            )}
+            {
+              card?.dueDate &&
+              <div className="flex gap-4">
+                <CalendarRange className="w-5 h-5 text-[#1f2937] dark:text-white/50mt-1 flex-shrink-0" />
+                <div className="flex-1 w-full min-w-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-white/50 dark:text-white/50 text-sm">DueDate</h3>
+
+                  </div>
+                  <span className="text-xs text-white/50">
+                    {text}
+                  </span>
+
+                </div>
+              </div>
+            }
+
+            {/* Description Section */}
+            <div className="flex gap-4">
+              <AlignLeft className="w-5 h-5 text-[#1f2937] dark:text-white/50mt-1 flex-shrink-0" />
+              <div className="flex-1 w-full min-w-0">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-white/50 dark:text-white/50 text-sm">Description</h3>
+                  {!isEditingDesc && !isReadOnly && (
+                    <button
+                      onClick={() => {
+                        if (blockIfReadOnly()) return
+                        setIsEditingDesc(true)
+                      }}
+                      className="text-white/50 hover:text-white/50 dark:text-white/50 dark:hover:text-white/50 text-xs font-medium bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded transition-colors"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+
+                {isEditingDesc ? (
+                  <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                    <textarea
+                      ref={textareaRef}
+                      value={descValue}
+                      onChange={(e) => setDescValue(e.target.value)}
+                      className="w-full min-h-[120px] p-3 text-sm text-white/50 dark:text-white/50 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 focus:border-transparent resize-none bg-gray-50 dark:bg-gray-900"
+                      placeholder="Add a more detailed description..."
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveDesc}
+                        className="bg-gray-900 dark:bg-gray-100 hover:bg-gray-800 dark:hover:bg-gray-200 text-white/50dark:text-white/50 px-4 py-1.5 rounded-md text-xs font-medium transition disabled:opacity-50"
+                        disabled={isSavingDates}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDescValue(card.description || "")
+                          setIsEditingDesc(false)
+                        }}
+                        className="text-white/50 dark:text-white/50 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md text-xs font-medium transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => {
+                      if (!isReadOnly) setIsEditingDesc(true)
+                    }}
+                    className={`text-sm text-white/50 dark:text-white/50min-h-[60px] py-2 px-3 rounded-lg -ml-3 border border-transparent ${!isReadOnly ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50" : ""
+                      } transition-colors`}
+                  >
+                    {card.description ? (
+                      <p className="whitespace-pre-wrap  leading-relaxed 
+    break-all leading-relaxed">{card.description}</p>
+                    ) : (
+                      <p className="text-white/50 dark:text-white/50 italic">Add a more detailed description...</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Attachments */}
+
+            <div>
+              {
+                attachments.length > 0 &&
+                <div className="flex items-center gap-2 text-xs font-medium text-white/50 mb-2">
+                  <Paperclip className="h-4 w-4" />
+                  <span>Attachments</span>
+                </div>
+              }
+
+
+              <div className="">
+                <CardAttachments
+                  cardId={card._id}
+                  boardId={boardId}
+                  attachments={attachments}
+                  onAttachmentsChange={setAttachments}
+                  onSave={handleSaveAttachments}
+                  showAttachments={showAttachments}
+                  isReadOnly={isReadOnly}
+
+                />
+              </div>
+            </div>
+
+
+            {/* Tasks and Checklists */}
+            {
+              cardTasks?.length > 0 &&
+              <div className="">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-medium text-white/50 mb-2">
+                    <CheckSquare className="h-4 w-4" />
+                    <span>Tasks</span>
+                  </div>
+                </div>
+
+                {/* Task List */}
+                <div className="">
+                  {cardTasks.map((task, i) => (
+                    <TaskItem
+                      key={task._id}
+                      task={task}
+                      boardId={boardId}
+                      cardId={card._id}
+                      isReadOnly={isReadOnly}
+                      setColumns={setColumns}
+                      card={card}
+                      taskchild={taskchild[i]}
+                    />
+                  ))}
+                </div>
+              </div>
+            }
+
+
+            <CardActivity
+              boardId={boardId}
+              cardId={card._id}
+              userId={userId}
+              onCommentCountChange={handleCommentCountChange}
+              connected={connected}
+              setColumns={setColumns}
+
+            />
+          </div>
+
+          {/* RIGHT COLUMN: Sidebar Actions */}
+          <div className="space-y-6 min-w-0">
+            <div className="text-xs font-semibold text-white/50 uppercase">Add to card</div>
+            <div className="space-y-2">
+
+              <Popover onOpenChange={async (open) => {
+                if (open) {
+                  setIsMembersLoading(true)
+                  setMemberSearchTerm("") // Reset search when opening
+                  setSearchedMembers([])
+                  await fetchMembersForCards(card?._id)
+                  setIsMembersLoading(false)
+                } else {
+                  setMemberSearchTerm("") // Reset search when closing
+                  setSearchedMembers([])
+                }
+              }}>
+                <PopoverTrigger asChild>
+                  <button
+                    className="w-full flex border border-white/10 items-center gap-2 px-3 py-1.5 hover:bg-white/5 text-white/50 text-xs rounded font-medium transition bg-transparent"
+                    disabled={isReadOnly}
+                  >
+                    <Users className="w-4 h-4" />
+                    Members
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="right" align="start" className="w-72 p-0 dark:bg-gray-800" sideOffset={10}>
+
+                  <div className="p-3">
+                    <input
+                      type="text"
+                      placeholder="Search members..."
+                      value={memberSearchTerm}
+                      onChange={(e) => setMemberSearchTerm(e.target.value)}
+                      onBlur={(e) => e.target.blur()}
+                      className="w-full px-3 py-2 border border-gray-200 dark:bg-gray-500 dark:text-white/50rounded text-xs mb-3 focus:outline-none ring-0 focus:ring-0 focus:border-[#1f2937]"
+                    />
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-white/50 mb-2">
+                        {memberSearchTerm.trim() ? "Search results" : "Board members"}
+                      </div>
+
+                      {/* Scrollable container with fixed height */}
+                      <div className="max-h-80 overflow-y-auto pr-1"> {/* 400px ≈ max-h-96 in Tailwind */}
+                        {isMembersLoading || isSearchingMembers ? (
+                          Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="flex items-center gap-2 p-2">
+                              <Skeleton className="w-7 h-7 rounded-full" />
+                              <Skeleton className="h-4 w-24" />
+                            </div>
+                          ))
+                        ) : memberSearchTerm.trim() ? (
+                          // Show search results
+                          searchedMembers.length > 0 ? (
+                            searchedMembers.map((member, index) => {
+                              const colorIndex = index % avatarColors.length
+                              return (
+                                <button
+                                  key={member._id || member.id}
+                                  className="w-full flex items-center justify-between p-2 hover:bg-gray-100 rounded group transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                  onClick={() => toggleMember(member)}
+                                  disabled={togglingMemberIds.size > 0}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className={`bg-blue-900 w-7 h-7 rounded-full text-white/50flex items-center justify-center text-xs font-bold`}>
+                                      {member?.name?.substring(0, 2).toUpperCase() || member?.email?.substring(0, 2).toUpperCase() || "??"}
+                                    </div>
+                                    <span className="text-xs text-white/50">
+                                      {member?.name || member?.email || "Unknown"}
+                                    </span>
+                                  </div>
+                                  {member._id && togglingMemberIds.has(member._id) && (
+                                    <div className="w-3 h-3 border-2 border-[#1f2937] border-t-transparent rounded-full animate-spin" />
+                                  )}
+                                </button>
+                              )
+                            })
+                          ) : (
+                            <div className="text-xs text-white/50 text-center py-4">
+                              No members found
+                            </div>
+                          )
+                        ) : (
+                          // Show all board members when not searching
+                          cardMembers?.map((member, index) => {
+                            const colorIndex = index % avatarColors.length
+                            return (
+                              <button
+                                key={member.id}
+                                className="w-full flex items-center justify-between p-2 hover:bg-gray-100  dark:hover:bg-gray-700 rounded group transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                onClick={() => toggleMember(member)}
+                                disabled={togglingMemberIds.size > 0}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div
+
+                                    className={`bg-blue-900 w-7 h-7 rounded-full text-white/50flex items-center justify-center text-xs font-bold`}>
+                                    {member?.name?.substring(0, 2).toUpperCase()}
+                                  </div>
+                                  <span className="text-xs text-white/50">
+                                    {member?.name}
+                                  </span>
+                                </div>
+                                {member._id && togglingMemberIds.has(member._id!) && (
+                                  <div className="w-3 h-3 border-2 border-[#1f2937] border-t-transparent rounded-full animate-spin" />
+                                )}
+                              </button>
+                            )
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Popover open={isLabelPopoverOpen} onOpenChange={setIsLabelPopoverOpen}>
+                <PopoverTrigger asChild>
+
+                  <button
+                    className="w-full flex border border-white/10 items-center gap-2 px-3 py-1.5 hover:bg-white/5 text-white/50 text-xs rounded font-medium transition bg-transparent"
+                  >
+                    <Tag className="w-4 h-4 text-white/50 dark:text-white/50" />
+                    Labels
+                  </button>
+
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0 rounded-lg shadow-xl dark:bg-gray-800 dark:border-gray-700" align="start">
+                  <div className="flex flex-col h-[400px]">
+                    <div className="px-4 py-3 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-t-lg flex items-center justify-between sticky top-0 z-10">
+                      <h4 className="font-semibold text-sm text-white/50 dark:text-white/50">
+                        {isCreatingLabel ? (isEditingLabel ? "Edit Label" : "Create Label") : "Labels"}
+                      </h4>
+                      {isCreatingLabel && (
+                        <button
+                          onClick={() => {
+                            setIsCreatingLabel(false)
+                            setEditingTagId(null)
+                            setIsEditingLabel(false)
+                            setNewLabelName("")
+                          }}
+                          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition"
+                        >
+                          <ChevronLeft className="w-4 h-4 text-white/50 dark:text-white/50" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto px-4 py-3">
+                      {isCreatingLabel ? (
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-xs font-bold text-white/50 dark:text-white/50 uppercase tracking-wide block mb-2">Name</label>
+                            <input
+                              value={newLabelName}
+                              onChange={(e) => setNewLabelName(e.target.value)}
+                              placeholder="Label name (optional)"
+                              className="w-full px-3 py-2 text-sm text-white/50 dark:text-white/50 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              autoFocus
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-white/50 dark:text-white/50 uppercase tracking-wide block mb-2">Color</label>
+                            <div className="grid grid-cols-5 gap-2">
+                              {LABEL_COLORS.map((color) => (
+                                <button
+                                  key={color}
+                                  onClick={() => setSelectedColor(color)}
+                                  className={`${color} h-8 rounded-md transition-transform hover:scale-105 hover:shadow-md relative ring-2 ${selectedColor === color ? 'ring-offset-2 ring-gray-400 dark:ring-gray-500' : 'ring-transparent'}`}
+                                >
+                                  {selectedColor === color && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <Check className="w-4 h-4 text-white" />
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between pt-4 border-t dark:border-gray-700">
+                            {isEditingLabel && (
+                              <button
+                                onClick={() => editingTagId && handleDeleteTag(editingTagId)}
+                                className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/30 dark:text-red-400 rounded-md text-sm font-medium transition"
+                              >
+                                Delete
+                              </button>
+                            )}
+                            <div className="flex gap-2 ml-auto">
+                              <button
+                                onClick={handleCreateLabel}
+                                disabled={isTagLoading}
+                                className="px-4 py-2 bg-gray-900 dark:bg-gray-100 hover:bg-gray-800 dark:hover:bg-gray-200 text-white/50dark:text-white/50 rounded-md text-sm font-medium transition shadow-sm disabled:opacity-50"
+                              >
+                                {isTagLoading ? "Saving..." : (isEditingLabel ? "Save" : "Create")}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <input
+                            placeholder="Search labels..."
+                            value={searchLabel}
+                            onChange={(e) => setSearchLabel(e.target.value)}
+                            className="w-full px-3 py-2 text-sm text-white/50 dark:text-white/50 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+                          />
+
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-white/50 dark:text-white/50 uppercase tracking-wide block mb-2">Available Labels</label>
+                            {isFetchingTags ? (
+                              <div className="py-4 text-center text-white/50 dark:text-white/50 text-xs">Loading tags...</div>
+                            ) : fetchedTagData.length > 0 ? (
+                              fetchedTagData
+                                .filter(tag => tag.name.toLowerCase().includes(searchLabel.toLowerCase()))
+                                .map(tag => {
+                                  const isSelected = displayTagData.some(t => t._id === tag._id)
+                                  return (
+                                    <div key={tag._id} className="flex item-center gap-2 group">
+                                      <button
+                                        onClick={() => !togglingTagId && handleToggleTag(tag)}
+                                        className={`flex-1 flex items-center justify-between px-3 py-2 rounded-md transition-all hover:pl-4 group relative overflow-hidden ${tag.color} text-white/50shadow-sm`}
+                                        disabled={!!togglingTagId}
+                                      >
+                                        <span className="font-semibold text-sm truncate pr-2">{tag.name}</span>
+                                        {isSelected && (
+                                          <div className="bg-white/20 p-0.5 rounded-full">
+                                            <Check className="w-3.5 h-3.5" />
+                                          </div>
+                                        )}
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          startEditLabel(tag)
+                                        }}
+                                        className="p-2 text-white/50 dark:text-white/50 hover:text-white/50 dark:hover:text-white/50hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition"
+                                      >
+                                        <CreditCard className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  )
+                                })
+                            ) : (
+                              <div className="py-8 text-center text-white/50 dark:text-white/50 text-xs italic">
+                                No labels found. Create one to get started!
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {!isCreatingLabel && (
+                      <div className="p-3 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-lg">
+                        <button
+                          onClick={() => {
+                            setNewLabelName(searchLabel) // Pre-fill with search term if any
+                            setIsCreatingLabel(true)
+                          }}
+                          className="w-full py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-white/50 dark:text-white/50 rounded-md text-sm font-medium transition"
+                        >
+                          Create a new label
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Popover open={isChecklistPopoverOpen} onOpenChange={(open) => { setIsChecklistPopoverOpen(open); if (open) setNewTaskName("") }}>
+                <PopoverTrigger asChild>
+                  <button
+                    className="w-full flex border border-white/10 items-center gap-2 px-3 py-1.5 hover:bg-white/5 text-white/50 text-xs rounded font-medium transition bg-transparent"
+                    disabled={isReadOnly}
+                  >
+                    <CheckSquare className="w-4 h-4" /> Task
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="start" className="w-[300px] p-3 shadow-xl border-gray-200" sideOffset={8}>
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold text-white/50">Add Task</div>
+                    <input
+                      type="text"
+                      placeholder="Task name..."
+                      value={newTaskName}
+                      onChange={(e) => setNewTaskName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newTaskName.trim() && !isCreatingTask) {
+
+                          createTask(card._id, newTaskName.trim(), "boardSocketService.socketId");
+
+                          setNewTaskName("")
+                          setIsChecklistPopoverOpen(false)
+                        }
+                      }}
+                      disabled={isCreatingTask}
+                      className="w-full px-3 py-2 border border-gray-200 rounded text-xs focus:outline-none focus:border-[#1f2937] disabled:opacity-60 disabled:cursor-not-allowed"
+                      autoFocus
+                    />
+                    <button
+                      className="w-full bg-[#1f2937] text-white/50text-xs font-medium py-1.5 rounded hover:bg-[#5B21B6] transition disabled:opacity-60 disabled:cursor-not-allowed"
+                      onClick={() => {
+                        if (newTaskName.trim() && !isCreatingTask) {
+
+                          createTask(card._id, newTaskName.trim(), "boardSocketService.socketId");
+
+                          setNewTaskName("")
+                          setIsChecklistPopoverOpen(false)
+                        }
+                      }}
+                      disabled={isCreatingTask || !newTaskName.trim()}
+                    >
+                      {isCreatingTask ? "Adding..." : "Add"}
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Popover open={isDatesPopoverOpen} onOpenChange={setIsDatesPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button className="w-full flex border border-white/10 items-center gap-2 px-3 py-1.5 hover:bg-white/5 text-white/50 text-xs rounded font-medium transition bg-transparent" disabled={isReadOnly}>
+                    <Clock className="w-4 h-4" /> Dates
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-0 rounded-lg shadow-xl dark:bg-gray-800 dark:border-gray-700 font-sans" align="start">
+                  <div className="px-4 py-3 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-t-lg">
+                    <h4 className="font-semibold text-sm text-white/50 dark:text-white/50">Dates</h4>
+                  </div>
+                  <div className="p-4 space-y-5">
+                    <div>
+                      <label className="text-xs font-bold text-white/50 block mb-1">Start date</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isStartDateEnabled}
+                          onChange={(e) => {
+                            if (blockIfReadOnly()) return
+                            const enabled = e.target.checked
+                            setIsStartDateEnabled(enabled)
+                            if (enabled && !startDate) setStartDate(new Date())
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#1f2937] focus:ring-[#1f2937] bg-white dark:bg-gray-700"
+                          disabled={isReadOnly}
+                        />
+
+                        <div className={`flex-1 flex items-center gap-3 bg-white dark:bg-gray-700 rounded px-3 py-2 border ${isStartDateEnabled ? 'border-[#1f2937] bg-white' : 'border-gray-200'}`}>
+                          <PlayCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                          <input
+                            type="date"
+                            value={formatInputDate(startDate)}
+                            min={formatInputDate(today)}
+                            onChange={(e) => {
+                              if (blockIfReadOnly()) return
+                              setStartDate(e.target.value ? new Date(e.target.value) : undefined)
+                            }}
+                            onBlur={(e) => e.target.blur()}
+                            disabled={!isStartDateEnabled || isReadOnly}
+                            className="bg-transparent w-full text-xs outline-none text-white/50 dark:text-white/50 placeholder-gray-400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-white/50 block mb-1">Due date</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={hasDueDate}
+                          onChange={(e) => {
+                            if (blockIfReadOnly()) return
+                            const enabled = e.target.checked
+                            setHasDueDate(enabled)
+                            if (enabled && !dueDate) setDueDate(startDate || today)
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#1f2937] focus:ring-[#1f2937] bg-white dark:bg-gray-700"
+                          disabled={isReadOnly}
+                        />
+                        <div className="flex-1 flex items-center gap-3 bg-white dark:bg-gray-700 rounded px-3 py-2 border border-[#1f2937] dark:border-gray-500">
+                          <Flag className="w-4 h-4 text-red-600 flex-shrink-0" />
+                          <input
+                            type="date"
+                            value={formatInputDate(dueDate)}
+                            min={formatInputDate(startDate || today)}
+                            onChange={(e) => {
+                              if (blockIfReadOnly()) return
+                              setDueDate(e.target.value ? new Date(e.target.value) : undefined)
+                            }}
+                            onBlur={(e) => e.target.blur()}
+                            disabled={!hasDueDate || isReadOnly}
+                            className="bg-transparent w-full text-xs outline-none text-white/50 dark:text-white/50"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                      <button
+                        className="w-full bg-[#1f2937] hover:bg-[#5B21B6] dark:bg-gray-100 dark:text-white/50 text-white/50font-medium text-xs py-2 rounded transition disabled:opacity-60"
+                        onClick={handleSaveDates}
+                        disabled={isSavingDates}
+                      >
+                        {isSavingDates ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        className="w-full bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-white/50 dark:text-white/50font-medium text-xs py-2 rounded transition disabled:opacity-60"
+                        onClick={handleRemoveDates}
+                        disabled={isSavingDates}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <button onClick={() => setShowAttachments(true)} className="w-full flex border border-white/10 items-center gap-2 px-3 py-1.5 hover:bg-white/5 text-white/50 text-xs rounded font-medium transition bg-transparent">
+                <Paperclip className="w-4 h-4" /> Attachment
+              </button>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-white/50 dark:text-white/50 uppercase mt-8 mb-6">Actions</div>
+              <button
+                onClick={handleToggleComplete}
+                className={`flex items-center gap-2 w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium transition disabled:opacity-60 ${card?.isCompleted
+                  ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                  : "bg-white/5 text-white/50 hover:bg-white/10"
+                  }`}
+              >
+                <CheckSquare className="w-4 h-4" />
+                {card?.isCompleted ? "Completed" : "Mark Complete"}
+              </button>
+
+
+              <div className="mt-0">
+                <button onClick={handleDelete} className="w-full mt-2 flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-xs font-medium transition disabled:opacity-60" disabled={isReadOnly}>
+                  <Trash2 className="w-4 h-4" /> Delete
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div >
+
+    </div >
+  )
+}
+
+// Sub-component for individual Task item to manage its own checklist
+function TaskItem({
+  task,
+  boardId,
+  cardId,
+  isReadOnly,
+  setColumns,
+  taskchild,
+  card,
+
+}: {
+  task: any
+  boardId: string
+  cardId: string
+  isReadOnly?: boolean
+  setColumns: React.Dispatch<React.SetStateAction<Column[]>>
+  card: Card
+  taskchild: any
+}) {
+  const { updateTask, deleteTask, tasks } = useTaskStore()
+
+  // Helper function to update card TaskDataCount with deltas
+
+
+  // Initialize with nested data
+  const [checklistitems, setchecklistitems] = useState<any[]>(task.checklistData || [])
+  const [newItemInput, setNewItemInput] = useState("")
+  const [isAddingChecklistItem, setIsAddingChecklistItem] = useState(false)
+
+  // Checklist pagination state
+  const [checklistCurrentPage, setChecklistCurrentPage] = useState(1)
+  const [checklistTotalPages, setChecklistTotalPages] = useState(1)
+  const [hasMoreChecklists, setHasMoreChecklists] = useState(true)
+  const [isLoadingMoreChecklists, setIsLoadingMoreChecklists] = useState(false)
+
+  // Task Title Edit State
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [titleInput, setTitleInput] = useState(task.name)
+
+  // Checklist Item Edit State
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [editItemValue, setEditItemValue] = useState("")
+  const [togglingItemId, setTogglingItemId] = useState<string | null>(null)
+
+  // Local Counts State
+  const [localCounts, setLocalCounts] = useState({
+    total: task?.childCount || 0,
+    completed: task?.completedChildCount || 0
+  })
+
+  // Sync if task prop updates (e.g. after re-fetch of tasks)
+  useEffect(() => {
+    if (task.checklistData) {
+      setchecklistitems(task.checklistData)
+      // Initialize pagination: if childCount > items.length, there might be more pages
+      // const initialHasMore = task.childCount > (task.checklistData?.length || 0)
+      // setHasMoreChecklists(initialHasMore)
+      setChecklistCurrentPage(1)
+      //setChecklistTotalPages(initialHasMore ? 2 : 1) // Assume at least 2 pages if hasMore
+    }
+    setLocalCounts({
+      total: task?.childCount || 0,
+      completed: task?.completedChildCount || 0
+    })
+  }, [task.checklistData, task.childCount, task.completedChildCount])
+  const updateTaskAndCardCounts = (newChildCount: number, newCompletedChildCount: number) => {
+    // Update task in store
+    // updateTask(task._id, {
+    //   childCount: newChildCount,
+    //   completedChildCount: newCompletedChildCount
+    // } as any)
+
+    // Calculate total counts for the card (sum of all tasks)
+    const allTasksForCard = tasks.filter(t => t.cardId === cardId)
+    const totalChildCount = allTasksForCard.reduce((sum, t) => {
+      // Use updated count for current task, existing count for others
+      if (t._id === task._id) {
+        return sum + newChildCount
+      }
+      return sum + (t.childCount || 0)
+    }, 0)
+
+    const totalCompletedChildCount = allTasksForCard.reduce((sum, t) => {
+      // Use updated count for current task, existing count for others
+      if (t._id === task._id) {
+        return sum + newCompletedChildCount
+      }
+      return sum + (t.completedChildCount || 0)
+    }, 0)
+
+    // Update kanban-board card TaskDataCount
+    setColumns(prev => prev.map(col => ({
+      ...col,
+      cards: col.cards.map(c =>
+        c._id === cardId
+          ? {
+            ...c,
+            TaskDataCount: {
+              totalChildCount,
+              totalCompletedChildCount
+            }
+          }
+          : c
+      )
+    })))
+  }
+
+  // useEffect(() => {
+  //   const handlechecklistUpdated = (playload) => {
+  //     console.log("fdhjfsuh", playload)
+
+  //     const itemId = playload._id
+
+  //     const currentVal = playload.isCompleted
+  //     if (playload?.completionData) {
+  //       setchecklistitems(prev => prev.map(i => i._id === itemId ? { ...i, isCompleted: currentVal } : i));
+
+  //       // Update local counts state
+  //       setLocalCounts(prev => {
+  //         const newCompleted = currentVal ? prev.completed + 1 : prev.completed - 1
+  //         const newTotal = prev.total // Total doesn't change on toggle
+
+  //         // Sync upstream
+  //         // updateTaskAndCardCounts(newTotal, newCompleted)
+
+  //         return { ...prev, completed: newCompleted }
+  //       })
+  //     }
+  //     else {
+  //       setchecklistitems(prev => prev.map(i => i._id === itemId ? { ...i, description: playload?.description } : i))
+  //     }
+  //   }
+  //   console.log("playloadDelete", localCounts)
+  //   const handlechecklistDeleted = (playload) => {
+  //     console.log("playloadDeletesocket", playload)
+
+  //     const itemId = playload._id
+  //     const itemToDelete = checklistitems.find(i => i._id === itemId)
+  //     if (!itemToDelete) return; // Should not happen
+
+  //     // Optimistic Update
+  //     setchecklistitems(prev => prev.filter(i => i._id !== itemId));
+  //     setLocalCounts(prev => {
+  //       const newTotal = prev.total - 1
+  //       const newCompleted = itemToDelete.isCompleted ? prev.completed - 1 : prev.completed
+  //       // updateTaskAndCardCounts(newTotal, newCompleted)
+  //       return { total: newTotal, completed: newCompleted }
+  //     });
+  //   }
+
+
+  //   const handlechecklistCreated = (playload) => {
+  //     console.log("playloadDeletesocketConnwcasda", playload)
+  //     if ((playload?.taskObj?._id) !== task._id) return;
+  //     setchecklistitems(prev => [...prev, playload?.checklist])
+
+  //     // Update local counts safely (assuming add always increases total by 1)
+  //     setLocalCounts(prev => {
+  //       const newTotal = prev.total + 1
+  //       const newCompleted = prev.completed // new item is incomplete by default
+  //       // Sync upstream
+  //       // updateTaskAndCardCounts(newTotal, newCompleted)
+  //       return { total: newTotal, completed: newCompleted }
+  //     })
+  //   }
+  //   boardSocketService.on("checklist:created", handlechecklistCreated);
+  //   boardSocketService.on("checklist:updated", handlechecklistUpdated);
+  //   boardSocketService.on("checklist:deleted", handlechecklistDeleted);
+
+  //   return () => {
+  //     boardSocketService.off("checklist:created", handlechecklistCreated);
+  //     boardSocketService.off("checklist:updated", handlechecklistUpdated);
+  //     boardSocketService.off("checklist:deleted", handlechecklistDeleted);
+  //   };
+  // }, []);
+
+
+  console.log("cjz7824", taskchild)
+
+
+  // const updateTaskAndCardCounts = (newChildCount: number, newCompletedChildCount: number) => {
+  //   // Update task in store
+  //   // updateTask(task._id, {
+  //   //   childCount: newChildCount,
+  //   //   completedChildCount: newCompletedChildCount
+  //   // } as any)
+
+  //   // Calculate total counts for the card (sum of all tasks)
+  //   const allTasksForCard = tasks.filter(t => t.cardId === cardId)
+  //   const totalChildCount = allTasksForCard.reduce((sum, t) => {
+  //     // Use updated count for current task, existing count for others
+  //     if (t._id === task._id) {
+  //       return sum + newChildCount
+  //     }
+  //     return sum + (t.childCount || 0)
+  //   }, 0)
+
+  //   const totalCompletedChildCount = allTasksForCard.reduce((sum, t) => {
+  //     // Use updated count for current task, existing count for others
+  //     if (t._id === task._id) {
+  //       return sum + newCompletedChildCount
+  //     }
+  //     return sum + (t.completedChildCount || 0)
+  //   }, 0)
+
+  //   // Update kanban-board card TaskDataCount
+  //   setColumns(prev => prev.map(col => ({
+  //     ...col,
+  //     cards: col.cards.map(c =>
+  //       c._id === cardId
+  //         ? {
+  //           ...c,
+  //           TaskDataCount: {
+  //             totalChildCount,
+  //             totalCompletedChildCount
+  //           }
+  //         }
+  //         : c
+  //     )
+  //   })))
+  // }
+
+  const handleAddItem = async () => {
+    if (!newItemInput.trim() || isAddingChecklistItem) return
+    setIsAddingChecklistItem(true)
+    const token = Cookies.get("auth-token");
+    try {
+      const response = await fetch(`https://uatapi.garage.app/flowboard/v1/tasks/${task._id}/checklists`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ description: newItemInput, socketId: " boardSocketService.socketId" })
+      });
+      const data = await response.json();
+      if (data.status) {
+        // Calculate new values first
+        const newItem = data.data
+
+        setchecklistitems(prev => [...prev, newItem])
+
+        // Update local counts safely (assuming add always increases total by 1)
+        setLocalCounts(prev => {
+          const newTotal = prev.total + 1
+          const newCompleted = prev.completed // new item is incomplete by default
+          // Sync upstream
+          // updateTaskAndCardCounts(newTotal, newCompleted)
+          return { total: newTotal, completed: newCompleted }
+        })
+
+        setColumns(prev => prev.map(col => ({
+          ...col,
+          cards: col.cards.map(c =>
+            c._id === cardId
+              ? {
+                ...c,
+                TaskDataCount: {
+                  // Safely get current totalChildCount, default to 0
+                  totalChildCount: (c.TaskDataCount?.totalChildCount ?? 0) + 1,
+                  // Safely get current completed count, default to 0
+                  totalCompletedChildCount: c.TaskDataCount?.totalCompletedChildCount ?? 0,
+                },
+              }
+              : c
+          )
+        })));
+
+        setNewItemInput("")
+        toast.success("Item added")
+      }
+    } catch (e) {
+      toast.error("Failed to add item")
+    } finally {
+      setIsAddingChecklistItem(false)
+    }
+  }
+  console.log("lasdasd342", localCounts)
+  const handleToggle = async (itemId: string, currentVal: boolean) => {
+    // Prevent multiple toggles at once
+    if (togglingItemId !== null) return
+
+    setTogglingItemId(itemId)
+
+
+
+    try {
+      const token = Cookies.get("auth-token");
+      const response = await fetch(`https://uatapi.garage.app/flowboard/v1/tasks/checklists/${itemId}/complete`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isCompleted: !currentVal, socketId: "boardSocketService.socketId " })
+      });
+      const data = await response.json();
+      if (!response.ok || data.status === false) {
+        throw new Error(data.message || "Failed to update checklist item");
+      }
+
+      // Update items state
+      setchecklistitems(prev => prev.map(i => i._id === itemId ? { ...i, isCompleted: !currentVal } : i));
+
+      // Update local counts state
+      setLocalCounts(prev => {
+        const newCompleted = !currentVal ? prev.completed + 1 : prev.completed - 1
+        const newTotal = prev.total // Total doesn't change on toggle
+
+        // Sync upstream
+        // updateTaskAndCardCounts(newTotal, newCompleted)
+
+        return { ...prev, completed: newCompleted }
+      })
+
+
+      // const delta = payload.isCompleted ? 1 : -1; // +1 if now completed, -1 if now incomplete
+
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) =>
+            c._id === cardId
+              ? {
+                ...c,
+                TaskDataCount: {
+                  // Keep total child count unchanged (assuming toggle, not add/remove)
+                  totalChildCount: c.TaskDataCount?.totalChildCount ?? 0,
+                  // Update completed count
+                  totalCompletedChildCount:
+                    currentVal ? (c.TaskDataCount?.totalCompletedChildCount ?? 0) - 1 : (c.TaskDataCount?.totalCompletedChildCount ?? 0) + 1,
+                },
+              }
+              : c
+          ),
+        }))
+      );
+      // setColumns(prev => prev.map(col => ({
+      //   ...col,
+      //   cards: col.cards.map(c =>
+      //     c._id === cardId
+      //       ? {
+      //         ...c,
+      //         TaskDataCount: {
+      //           // Keep total child count unchanged (assuming toggle, not add/remove)
+      //           totalChildCount: (c.TaskDataCount?.totalChildCount + 1 ?? 0),
+      //           // Update completed count
+      //           totalCompletedChildCount:
+      //             (c.TaskDataCount?.totalCompletedChildCount ?? 0),
+      //         },
+      //       }
+      //       : c
+      //   )
+      // })))
+
+    } catch (e) {
+      toast.error("Failed to update item");
+    } finally {
+      setTogglingItemId(null)
+    }
+  }
+
+  const handleDeleteItem = async (itemId: string) => {
+
+
+    const itemToDelete = checklistitems.find(i => i._id === itemId)
+    if (!itemToDelete) return; // Should not happen
+
+    // Optimistic Update
+
+    try {
+      const token = Cookies.get("auth-token");
+      const response = await fetch(`https://uatapi.garage.app/flowboard/v1/tasks/checklists/${itemId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok || data.status === false) {
+        throw new Error(data.message || "Failed to delete checklist item");
+      }
+
+      setchecklistitems(prev => prev.filter(i => i._id !== itemId));
+      setLocalCounts(prev => {
+        const newTotal = prev.total - 1
+        const newCompleted = itemToDelete.isCompleted ? prev.completed - 1 : prev.completed
+        // updateTaskAndCardCounts(newTotal, newCompleted)
+        return { total: newTotal, completed: newCompleted }
+      });
+
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) =>
+            c._id === cardId
+              ? {
+                ...c,
+                TaskDataCount: {
+                  // Keep total child count unchanged (assuming toggle, not add/remove)
+                  totalChildCount: (c.TaskDataCount?.totalChildCount ?? 0) - 1,
+                  // Update completed count
+                  totalCompletedChildCount:
+                    itemToDelete.isCompleted ? (c.TaskDataCount?.totalCompletedChildCount ?? 0) - 1 : (c.TaskDataCount?.totalCompletedChildCount ?? 0),
+                },
+              }
+              : c
+          ),
+        }))
+      );
+      // Success, state already updated optimistically
+    } catch (e) {
+      toast.error("Failed to delete item");
+      // Revert if failed (optional, but good practice). For now leaving as is to focus on the 'not updating' fix.
+    }
+  }
+
+  const handleLoadMoreChecklists = async () => {
+    if (isLoadingMoreChecklists || !hasMoreChecklists) return
+
+    setIsLoadingMoreChecklists(true)
+    try {
+      const token = Cookies.get("auth-token");
+      const nextPage = checklistCurrentPage + 1
+      const response = await fetch(
+        `https://uatapi.garage.app/flowboard/v1/tasks/checklists/?size=10&page=${nextPage}&boardId=${boardId}&taskId=${task._id}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await response.json();
+      if (!response.ok || data.status === false) {
+        throw new Error(data.message || "Failed to load more checklist items");
+      }
+
+      // Append new items
+      const newItems = Array.isArray(data.data) ? data.data : []
+      setchecklistitems(prev => [...prev, ...newItems])
+
+      // Update pagination state
+      const metadata = data.metadata || {}
+      const currentPage = metadata.currentPage ?? nextPage
+      const totalPages = metadata.totalPages ?? currentPage
+      const hasMore = currentPage < totalPages
+
+      setChecklistCurrentPage(currentPage)
+      setChecklistTotalPages(totalPages)
+      setHasMoreChecklists(hasMore)
+    } catch (e: any) {
+      toast.error(e.message || "Failed to load more items");
+    } finally {
+      setIsLoadingMoreChecklists(false)
+    }
+  }
+
+  // Task Title Updates
+  const handleSaveTitle = async () => {
+    if (titleInput.trim()) {
+      updateTask(task._id, { name: titleInput, socketId: undefined })
+
+      setTitleInput(task.name) // Revert if empty or unchanged
+
+      setIsEditingTitle(false)
+    }
+  }
+
+  const handleCancelTitleEdit = () => {
+    setTitleInput(task.name)
+    setIsEditingTitle(false)
+  }
+
+  // Checklist Item Updates
+  const startEditingItem = (item: any) => {
+    setEditingItemId(item._id)
+    setEditItemValue(item.description)
+  }
+
+  const cancelEditingItem = () => {
+    setEditingItemId(null)
+    setEditItemValue("")
+  }
+
+  const saveEditingItem = async (itemId: string) => {
+    if (!editItemValue.trim()) return
+
+    // Optimistic update
+    setchecklistitems(prev => prev.map(i => i._id === itemId ? { ...i, description: editItemValue } : i))
+    setEditingItemId(null)
+
+    try {
+      const token = Cookies.get("auth-token");
+      await fetch(`https://uatapi.garage.app/flowboard/v1/tasks/checklists/${itemId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ description: editItemValue, socketId: "boardSocketService.socketId " })
+      });
+      toast.success("Item updated")
+    } catch (e) {
+      toast.error("Failed to update item")
+      // We might want to revert here, but it requires keeping specific old value. 
+      // For simplicity we'll assume success or user can edit again.
+    }
+  }
+
+  const completedCount = localCounts.completed
+  const totalCount = localCounts.total
+  const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0
+  console.log("localCounts", localCounts)
+  return (
+    <div className="bg-transparent rounded-lg shadow-sm border border-[#e5e7eb29] p-4 mb-4" key={task?._id}>
+      {/* Header with Tasks title and progress count */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          {isEditingTitle ? (
+            <div className="flex items-center gap-1 flex-1">
+              <input
+                value={titleInput}
+                onChange={(e) => setTitleInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle()}
+                onBlur={(e) => e.target.blur()}
+                className="font-semibold text-white/50 text-xs border-b border-white/20 focus:outline-none flex-1 min-w-0 bg-transparent"
+                autoFocus
+              />
+              <button onClick={handleSaveTitle} className="p-1 hover:bg-white/10 rounded text-green-500"><Check className="w-4 h-4" /></button>
+              <button onClick={handleCancelTitleEdit} className="p-1 hover:bg-white/10 rounded text-red-500"><X className="w-4 h-4" /></button>
+            </div>
+          ) : (
+            <h3
+              onClick={() => !isReadOnly && setIsEditingTitle(true)}
+              className="font-semibold text-white/50 text-xs cursor-pointer hover:bg-white/10 rounded px-1 -ml-1"
+            >
+              {task.name}
+            </h3>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-white/50 font-medium">{completedCount}/{totalCount}</span>
+          {!isEditingTitle && !isReadOnly && (
+            <button
+              onClick={() => { if (confirm("Delete task?")) deleteTask(task._id, "boardSocketService.socketId") }}
+              className="text-white/50 hover:text-red-500 transition"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="mb-4">
+        <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+          <div
+            className="bg-blue-500 h-full transition-all duration-300 rounded-full"
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+      </div>
+
+      {/* Checklist Items */}
+      <div className="space-y-2 mb-4">
+        {checklistitems.map(item => (
+          <div key={item._id} className="flex items-center gap-3 group">
+            {editingItemId === item._id ? (
+              <div className="flex items-center gap-2 flex-1 w-full">
+                <input
+                  value={editItemValue}
+                  onChange={(e) => setEditItemValue(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveEditingItem(item._id)}
+                  onBlur={(e) => e.target.blur()}
+                  className="text-xs text-white/50 flex-1 border-b border-white/20 focus:outline-none py-1 bg-transparent"
+                  autoFocus
+                />
+                <button onClick={() => saveEditingItem(item._id)} className="p-1 hover:bg-white/10 rounded text-green-500"><Check className="w-4 h-4" /></button>
+                <button onClick={cancelEditingItem} className="p-1 hover:bg-white/10 rounded text-red-500"><X className="w-4 h-4" /></button>
+              </div>
+            ) : (
+              <>
+                <div className="relative flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={item.isCompleted}
+                    onChange={() => !isReadOnly && handleToggle(item._id, item.isCompleted)}
+                    disabled={isReadOnly || togglingItemId !== null}
+                    className="w-4 h-4 rounded border-[#e5e7eb29] accent-blue-500 bg-transparent focus:ring-blue-500 cursor-pointer flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  {togglingItemId === item._id && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-3 h-3 border-2 border-white/20 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
+                <span
+                  onClick={() => !isReadOnly && startEditingItem(item)}
+                  className={`text-xs text-white/50 flex-1 cursor-pointer hover:bg-white/10 px-1 rounded -ml-1 ${togglingItemId !== null ? 'opacity-50' : ''}`}
+                >
+                  {item.description}
+                </span>
+                {!isReadOnly && togglingItemId === null && (
+                  <button
+                    onClick={() => handleDeleteItem(item._id)}
+                    className="opacity-0 group-hover:opacity-100 text-white/50 hover:text-red-500 transition flex-shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      {
+        taskchild?.childCount > 10 && hasMoreChecklists &&
+        <div className="">
+          <button
+            onClick={handleLoadMoreChecklists}
+            disabled={isLoadingMoreChecklists}
+            className="w-full text-xs text-white/50 font-medium py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isLoadingMoreChecklists ? "Loading..." : "Load More"}
+          </button>
+        </div>
+      }
+
+      {/* Add New Item Section */}
+      {
+        !isReadOnly && (
+          <div className="flex gap-2">
+            <input
+              placeholder="Add an item..."
+              value={newItemInput}
+              onChange={(e) => setNewItemInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
+              onBlur={(e) => e.target.blur()}
+              disabled={isAddingChecklistItem}
+              className="text-xs px-3 py-2 border border-[#e5e7eb29] rounded-lg flex-1 focus:outline-none focus:ring-1 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed bg-transparent text-white/50"
+            />
+            <button
+              onClick={handleAddItem}
+              disabled={isAddingChecklistItem || !newItemInput.trim()}
+              className="bg-white/10 text-white/50 px-4 py-2 rounded-lg text-xs font-medium hover:bg-white/20 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isAddingChecklistItem ? "Adding..." : "Add"}
+            </button>
+          </div>
+        )
+      }
+
+      {/* Load More button for checklist items */}
+
+    </div >
+  )
+}

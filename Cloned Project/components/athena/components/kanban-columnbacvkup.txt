@@ -1,0 +1,918 @@
+"use client"
+
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { useDroppable } from "@dnd-kit/core"
+import { CSS } from "@dnd-kit/utilities"
+import { useMemo, useState, useRef, useEffect, useCallback } from "react"
+import { KanbanCard } from "./kanban-card"
+import type { Column } from "./Dashbaord"
+import { Plus, MoreHorizontal, Pencil, Trash2, Loader2, MoreVertical } from "lucide-react"
+import { useCardStore } from "@/store/athena/cardStore"
+import { toast } from "sonner"
+import { cn } from "@/lib/utils"
+import { StageSummaryDialog } from './stage-summary-dialog'
+import {
+
+  Share2,
+  Users,
+  Calendar,
+  Flag
+} from "lucide-react"
+import { AssigneePicker } from "./assignee-picker"
+import { CustomDatePicker } from "./custom-date-picker"
+import { PriorityPicker } from "./priority-picker"
+import { TagPicker } from "./tag-picker"
+import { Tag as TagIcon, AlignLeft } from "lucide-react"
+import Cookies from "js-cookie"
+import { useRouter } from "next/navigation"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { useSearchParams, usePathname } from 'next/navigation'
+type CommentItem = {
+  _id: string
+  userId?: {
+    _id?: string;
+    name?: string
+    email?: string
+  }
+  userName?: string
+  userAvatarUrl?: string
+  comment: string
+  createdAt?: string
+  updatedAt?: string
+}
+interface KanbanColumnProps {
+  column: Column
+  onAddCard: (columnId: string, cardData: {
+    title: string;
+    assignedToIds: string[];
+    startDate: number | null;
+    dueDate: number | null;
+    priority: string;
+    tags: string[];
+    description: string;
+
+  }) => void
+
+  onUpdate?: (id: string, newTitle: string) => void
+  onDelete?: (id: string) => void
+  isOverlay?: boolean
+  boardId: string
+  orgId: string
+  userId: string | undefined
+  setColumns: React.Dispatch<React.SetStateAction<Column[]>>
+  isReadOnly?: boolean
+  connected: boolean
+  updateTaskAndCardCounts: (newChildCount: number, newCompletedChildCount: number, taskId: string, cardId: string) => void
+
+  Idspace: string
+
+}
+
+export function KanbanColumn({ column, onAddCard, onUpdate, Idspace, updateTaskAndCardCounts, onDelete, connected, userId, isOverlay, boardId, orgId, setColumns, isReadOnly }: KanbanColumnProps) {
+  const [showAddCard, setShowAddCard] = useState(false)
+  const [showAddAtBottom, setShowAddAtBottom] = useState(false)
+  const [newCardTitle, setNewCardTitle] = useState("")
+  const [assignedToIds, setAssignedToIds] = useState<string[]>([])
+  const [startDate, setStartDate] = useState<number | null>(Date.now())
+  const [dueDate, setDueDate] = useState<number | null>(null)
+  const [priority, setPriority] = useState<string>("")
+  const [description, setDescription] = useState("")
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(column.name)
+  const [showMenu, setShowMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const addCardContainerRef = useRef<HTMLDivElement>(null)
+  const cardsContainerRef = useRef<HTMLDivElement>(null)
+  // const contentRef = useRef<HTMLDivElement>(null) // Unused
+  const isFetchingRef = useRef(false)
+  const pageRef = useRef(1) // Local page tracker
+  const totalPagesRef = useRef<number | null>(null) // Track total pages from API
+
+  const router = useRouter()
+  const [showExpiredDialog, setShowExpiredDialog] = useState(false)
+
+  const cardsIds = useMemo(() => column.cards.map((card) => card._id), [column.cards])
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+
+  const searchParams = useSearchParams();
+  const workspaceId = searchParams.get('workspaceId');
+
+
+
+
+
+
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
+    id: column._id,
+    data: {
+      type: "Column",
+      column,
+    },
+    disabled: isOverlay || isEditing || isReadOnly, // Disable drag when editing or read-only
+  })
+
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: column._id,
+    data: {
+      type: "Column",
+      column,
+    },
+  })
+
+  // console.log("column", column)
+  const style = {
+    transition,
+    transform: CSS.Transform.toString(transform),
+  }
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        setShowMenu(false)
+      }
+
+      // Check for Radix UI attributes that indicate a portal, popover, or active dialog
+      const isInsidePortal = (target as HTMLElement).closest('[data-radix-popper-content-wrapper]') ||
+        (target as HTMLElement).closest('[data-radix-portal-primitive]') ||
+        (target as HTMLElement).closest('[role="dialog"]') ||
+        (target as HTMLElement).closest('[role="menu"]') ||
+        (target as HTMLElement).closest('[role="listbox"]') ||
+        (target as HTMLElement).closest('.radix-popover-content');
+
+      if (addCardContainerRef.current &&
+        !addCardContainerRef.current.contains(target) &&
+        !isInsidePortal) {
+        setShowAddCard(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const [isCreating, setIsCreating] = useState(false)
+  const { fetchCardsForStage } = useCardStore()
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [stageExhausted, setStageExhausted] = useState(false)
+
+  const totalCardCount = column?.cardCount ?? 0
+  const totalCardCountFromMeta = column?.cardCount ?? 0
+  console.log("column?.cardCount", totalCardCount)
+  // ──────────────────────────────────────────────────────────────
+  // Can we fetch more?
+  // ──────────────────────────────────────────────────────────────
+  const canFetchMore = useCallback(() => {
+    // Check if exhausted
+    if (stageExhausted) return false
+
+    // Check if currently fetching
+    if (isFetchingRef.current) return false
+
+    // Check if we've reached total pages
+    if (totalPagesRef.current && pageRef.current >= totalPagesRef.current) {
+      setStageExhausted(true)
+      return false
+    }
+
+    // Only fetch if we have at least 10 cards (similar to taskroom)
+    return totalCardCount > 10
+  }, [stageExhausted, totalCardCount])
+
+  // ──────────────────────────────────────────────────────────────
+  // Trigger fetch (shared, safe)
+  // ──────────────────────────────────────────────────────────────
+  const triggerFetch = useCallback(async () => {
+    alert()
+    if (!canFetchMore()) return
+
+    isFetchingRef.current = true
+    setIsLoadingMore(true)
+    const nextPage = pageRef.current + 1
+    console.log(`[KanbanColumn] Fetching page ${nextPage} for ${column.name}...`)
+
+    try {
+      const { cards: newCards, totalPages } = await fetchCardsForStage(boardId, column._id, nextPage)
+
+      // Update total pages ref
+      totalPagesRef.current = totalPages
+
+      // Check if exhausted
+      if (!newCards || newCards.length === 0 || (totalPages && nextPage >= totalPages)) {
+        setStageExhausted(true)
+      }
+
+      if (newCards && newCards.length > 0) {
+        pageRef.current = nextPage // Increment local page on success
+
+        setColumns(prev => prev.map(col => {
+          if (col._id === column._id) {
+            return {
+              ...col,
+              cards: [
+                ...col.cards,
+                ...newCards
+                  .filter((nc: any) => !col.cards.some(existing => existing._id === nc._id))
+                  .map((c: any) => ({
+                    _id: c._id,
+                    name: c.name,
+                    userId: c.userId,
+                    description: c.description || "",
+                    tags: c.tags || [],
+                    tagData: c.tagData || [],
+                    members: c.assigneeData || [],
+                    dueDate: c.dueDate,
+                    checklist: c.checklist,
+                    comments: [],
+                    stageId: column._id,
+                    assignedToIds: c.assignedToIds || [],
+                  } as any))
+              ]
+            }
+          }
+          return col
+        }))
+      }
+    } catch (error) {
+      console.error(`[fetch] Failed for ${column.name}:`, error)
+    } finally {
+      setIsLoadingMore(false)
+      isFetchingRef.current = false
+    }
+  }, [column._id, column.name, boardId, fetchCardsForStage, canFetchMore, setColumns])
+
+  // ──────────────────────────────────────────────────────────────
+  // Auto-fetch on mount ONLY if column is empty/short
+  // ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    // If column is empty but has cards available (from metadata), fetch
+    if (column.cards.length === 0 && totalCardCountFromMeta > 0 && !stageExhausted && !isFetchingRef.current) {
+      triggerFetch()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run only once on mount
+
+  // ──────────────────────────────────────────────────────────────
+  // SCROLL-TO-LOAD: Only when near bottom + debounce
+  // ──────────────────────────────────────────────────────────────
+  const handleScroll = useCallback(
+    (e: Event) => {
+      if (!canFetchMore()) return
+
+      const target = e.target as HTMLDivElement
+      const { scrollTop, scrollHeight, clientHeight } = target
+
+      const threshold = 150 // px from bottom
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - threshold
+
+      if (isNearBottom) {
+        triggerFetch()
+      }
+    },
+    [canFetchMore, triggerFetch]
+  )
+
+  // Throttled scroll with debounce
+  useEffect(() => {
+    const container = cardsContainerRef.current
+    if (!container) return
+
+    let timeoutId: NodeJS.Timeout | null = null
+
+    const debouncedScroll = (e: Event) => {
+      if (timeoutId) return // Block multiple calls
+
+      timeoutId = setTimeout(() => {
+        handleScroll(e)
+        timeoutId = null
+      }, 300) // 300ms debounce
+    }
+
+    container.addEventListener("scroll", debouncedScroll, { passive: true })
+
+    return () => {
+      container.removeEventListener("scroll", debouncedScroll)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [handleScroll])
+
+  // Optional: Re-check if content height changes (e.g. after drag/drop)
+  const contentRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      if (column.cards.length > 0 && canFetchMore()) {
+        const container = cardsContainerRef.current
+        const content = contentRef.current
+        if (!container || !content) return
+
+        const visibleHeight = container.clientHeight
+        const contentHeight = content.scrollHeight
+
+        // If content is shorter than 80% of visible area → fetch more
+        if (contentHeight < visibleHeight * 0.8) {
+          triggerFetch()
+        }
+      }
+    })
+
+    if (contentRef.current) {
+      observer.observe(contentRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [canFetchMore, triggerFetch, column.cards.length])
+
+  const blockIfReadOnly = () => {
+    if (!isReadOnly) return false
+    toast.error("Observers can only view this board")
+    return true
+  }
+
+  const handleAddCard = async () => {
+
+
+    const token = localStorage.getItem("garage_tok")
+    // console.log("vcxvxvxcv2", token)
+    // if (token) {
+    //   try {
+
+    //     const payload = JSON.parse(atob(token.split('.')[1]))
+    //     console.log("vcxvxvxcv2", payload)
+    //     if (payload.exp) {
+    //       const currentTime = Math.floor(Date.now() / 1000)
+    //       console.log("vcxvxvxcv2", currentTime, payload.exp)
+    //       if (currentTime >= payload.exp) {
+    //         setShowExpiredDialog(true)
+    //         return
+    //       }
+    //     }
+    //   } catch (e) {
+    //     console.error("Failed to decode token", e)
+    //   }
+    // }
+
+    if (newCardTitle.trim() && !isCreating) {
+      setIsCreating(true)
+      await onAddCard(column._id, {
+        title: newCardTitle,
+        assignedToIds,
+        startDate: startDate || Date.now(),
+        dueDate,
+        priority,
+        tags: selectedTagIds,
+        description,
+        position: showAddAtBottom ? 'bottom' : 'top'
+      })
+      setNewCardTitle("")
+      setAssignedToIds([])
+      setStartDate(Date.now())
+      setDueDate(null)
+      setPriority("")
+      setDescription("")
+      setSelectedTagIds([])
+      setShowAddCard(false)
+      setShowAddAtBottom(false)
+      setIsCreating(false)
+    }
+  }
+  console.log("showExpiredDialog", showExpiredDialog)
+  const handleUpdateTitle = () => {
+
+    const token = Cookies.get("auth-token")
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        if (payload.exp) {
+          const currentTime = Math.floor(Date.now() / 1000)
+          if (currentTime >= payload.exp) {
+            setShowExpiredDialog(true)
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Failed to decode token", e)
+      }
+    }
+    if (editTitle.trim() && editTitle !== column.name) {
+      onUpdate?.(column._id, editTitle)
+    }
+    setIsEditing(false)
+  }
+
+  if (isDragging) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        // {...listeners} // Disabled dragging for columns
+        className={`bg-gray-100 dark:bg-gray-800 rounded-lg flex flex-col max-h-full border border-gray-200 dark:border-gray-700 shadow-sm w-[300px] flex-shrink-0 transition-opacity ${isDragging ? "opacity-50" : ""
+          }`}
+      />
+    )
+  }
+
+  // Combine refs for both sortable and droppable
+  const combinedRef = (node: HTMLDivElement | null) => {
+    setNodeRef(node)
+    setDroppableRef(node)
+  }
+
+  return (
+    <div
+      ref={combinedRef}
+      style={style}
+      className={`flex-shrink-0 w-80 rounded-xl shadow-sm flex flex-col h-full bg-[#111116]/40 overflow-hidden ${isOverlay ? "rotate-2 shadow-xl cursor-grabbing" : ""
+        } ${isOver ? "ring-2 ring-blue-400" : ""}`}
+    >
+      {/* Column Header */}
+
+      <div
+        {...(isReadOnly ? {} : { ...attributes, ...listeners })}
+        className="flex items-center justify-between px-3 py-2.5 pb-0  cursor-grab active:cursor-grabbing group rounded-t-lg"
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {!isEditing && (
+            <div className="h-2 w-2 rounded-full"
+              style={{
+                background: column?.color
+              }}
+            />
+          )}
+          {isEditing ? (
+            <input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={handleUpdateTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleUpdateTitle()
+                if (e.key === "Escape") {
+                  setEditTitle(column.name)
+                  setIsEditing(false)
+                }
+              }}
+              autoFocus
+              className="text-sm font-semibold text-gray-800 bg-[#111116] border border-blue-500 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onClick={(e) => e.stopPropagation()} // Prevent drag start
+              onPointerDown={(e) => e.stopPropagation()} // Prevent drag start
+            />
+          ) : (
+
+            <h2
+              className="text-sm font-[600] text-white truncate"
+            // onClick={() => setIsEditing(true)}
+            >
+              {column.name?.replace(/\b\w/g, char => char.toUpperCase()) || ''}
+
+            </h2>
+          )}
+
+          {/* {!isEditing && (
+            <span className="text-sm text-white/50 bg-black w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center">
+              {column.localCardCount}
+            </span>
+          )} */}
+        </div>
+        <button className="h-4 w-4 cursor-pointer text-white/50"
+          onClick={() => {
+            setShowAddAtBottom(false)
+            setShowAddCard(true)
+          }}
+        >
+          <Plus className="h-4 w-4 " />
+        </button>
+
+        {/* <div
+          onClick={() => setIsDialogOpen(true)}
+
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          Open
+        </div> */}
+        {/* <div
+          onClick={() => setIsDialogOpen(true)}
+
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          Open
+        </div> */}
+        {/* <button className="h-4 w-4 mr-2" onClick={() => setIsDialogOpen(true)}>
+          <Share2 className="h-4 w-4 mr-2" />
+        </button> */}
+
+        <StageSummaryDialog
+          stageId={column?._id}
+          stageName={column?.name}
+          isOpen={isDialogOpen}
+          onClose={() => setIsDialogOpen(false)}
+        />
+        {!isReadOnly && (
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowMenu(!showMenu)
+              }}
+              onPointerDown={(e) => e.stopPropagation()} // Prevent drag start
+              className="text-white/50 hover:text-white/50 cursor-pointer  transition p-1 rounded  dark:hover:bg-gray-700  group-hover:opacity-100"
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+
+            {showMenu && (
+              <div className="absolute right-0 top-full mt-1 w-40 bg-[#111116] dark:bg-gray-800 rounded-lg shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-10">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsEditing(true)
+                    setShowMenu(false)
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Rename
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const token = Cookies.get("auth-token")
+                    if (token) {
+                      try {
+                        const payload = JSON.parse(atob(token.split('.')[1]))
+                        if (payload.exp) {
+                          const currentTime = Math.floor(Date.now() / 1000)
+                          if (currentTime >= payload.exp) {
+                            setShowExpiredDialog(true)
+                            return
+                          }
+                        }
+                      } catch (e) {
+                        console.error("Failed to decode token", e)
+                      }
+                    }
+
+                    if (confirm("Are you sure you want to delete this list?")) {
+                      onDelete?.(column._id)
+                    }
+                    setShowMenu(false)
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Cards Container */}
+      <div
+        ref={cardsContainerRef}
+        className="flex flex-col gap-3 p-3 flex-1 overflow-y-auto min-h-[100px] "
+      >
+
+        {/* Add Card Form at Top */}
+        {showAddCard && !showAddAtBottom && (
+          <div
+            ref={addCardContainerRef}
+            className="bg-[#343439] border border-[#e5e7eb29] rounded-xl p-3 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200 mb-3"
+          >
+            <div className="flex justify-between items-start gap-2">
+              <textarea
+                placeholder="Task Name..."
+                value={newCardTitle}
+                onChange={(e) => setNewCardTitle(e.target.value)}
+                autoFocus
+                className="w-full px-0 py-1 bg-transparent text-sm placeholder:text-sm text-white/50 placeholder:text-white/50 rounded text-base font-medium focus:outline-none resize-none min-h-[40px]"
+                rows={1}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    handleAddCard()
+                  }
+                  if (e.key === "Escape") setShowAddCard(false)
+                }}
+              />
+              <button
+                onClick={handleAddCard}
+                disabled={isCreating || !newCardTitle.trim()}
+                className="flex items-center gap-1.5 bg-[#1a1a24]  hover:bg-[#3E3E4A] text-white/50 px-3 py-1.5 rounded-md text-sm font-medium transition-all active:scale-95 disabled:opacity-40"
+              >
+                {isCreating ? "..." : "Save"}
+                <span className="text-[10px] opacity-60">↵</span>
+              </button>
+            </div>
+
+            <div className="space-y-0.5">
+              <AssigneePicker
+                assignedToIds={assignedToIds}
+                onSelect={(ids) => setAssignedToIds(ids)}
+              >
+                <button className="flex items-center gap-2.5 px-2 w-full py-2 rounded-md hover:bg-[#1a1a24] text-slate-400 hover:text-white/50 transition-colors group">
+                  <div className="p-1 px-1.5 rounded bg-[#1a1a24] group-hover:bg-[#2e2e3a] transition-colors border border-[#e5e7eb10]">
+                    <Users className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[13px] font-normal">
+                    {assignedToIds.length > 0 ? `${assignedToIds.length} Assignees` : "Add assignee"}
+                  </span>
+                </button>
+              </AssigneePicker>
+
+              <CustomDatePicker
+                startDate={startDate ? new Date(startDate) : undefined}
+                dueDate={dueDate ? new Date(dueDate) : undefined}
+                onSelect={(range) => {
+                  setStartDate(range.start ? range.start.getTime() : null);
+                  setDueDate(range.due ? range.due.getTime() : null);
+                }}
+              >
+                <button className={cn(
+                  "flex items-center gap-2.5 w-full px-2 py-2 rounded-md hover:bg-[#1a1a24] transition-colors group",
+                  dueDate ? "text-white/50 bg-[#1a1a24]" : "text-slate-400 hover:text-white/50"
+                )}>
+                  <div className="p-1 px-1.5 rounded bg-[#1a1a24] group-hover:bg-[#2e2e3a] transition-colors border border-[#e5e7eb10]">
+                    <Calendar className={cn("w-3.5 h-3.5", dueDate && "text-white/50")} />
+                  </div>
+                  <span className="text-[13px] font-normal truncate">
+                    {dueDate ? `${new Date(startDate).toLocaleDateString()} ${dueDate ? `- ${new Date(dueDate).toLocaleDateString()}` : ""}` : "Add dates"}
+                  </span>
+                </button>
+              </CustomDatePicker>
+
+              <PriorityPicker
+                priority={priority}
+                onSelect={(p) => setPriority(p)}
+              >
+                <button className={cn(
+                  "flex items-center gap-2.5 w-full px-2  py-2 rounded-md hover:bg-[#1a1a24] transition-colors group",
+                  priority ? "text-white/50 bg-[#1a1a24]" : "text-slate-400 hover:text-white/50"
+                )}>
+                  <div className="p-1 px-1.5 rounded bg-[#1a1a24] group-hover:bg-[#2e2e3a] transition-colors border border-[#e5e7eb10]">
+                    <Flag className={cn("w-3.5 h-3.5", priority === "urgent" ? "fill-red-500 text-red-500" : (priority === "high" ? "fill-amber-500 text-amber-500" : ""))} />
+                  </div>
+                  <span className="text-[13px] font-normal capitalize">
+                    {priority || "Add priority"}
+                  </span>
+                </button>
+              </PriorityPicker>
+
+              <TagPicker
+                boardId={workspaceId}
+                selectedTagIds={selectedTagIds}
+                onSelect={(ids) => setSelectedTagIds(ids)}
+                Idspace={Idspace}
+              >
+                <button className={cn(
+                  "flex items-center gap-2.5 w-full px-2  py-2 rounded-md hover:bg-[#1a1a24] transition-colors group",
+                  selectedTagIds.length > 0 ? "text-white/50 bg-[#1a1a24]" : "text-slate-400 hover:text-white/50"
+                )}>
+                  <div className="p-1 px-1.5 rounded bg-[#1a1a24] group-hover:bg-[#2e2e3a] transition-colors border border-[#e5e7eb10]">
+                    <TagIcon className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[13px] font-normal">
+                    {selectedTagIds.length > 0 ? `${selectedTagIds.length} Tags` : "Add tags"}
+                  </span>
+                </button>
+              </TagPicker>
+
+              <div className="flex gap-2.5 w-full px-2 py-2 rounded-md transition-colors group">
+                <div className="p-1 px-1.5 h-fit rounded bg-[#1a1a24] border border-[#e5e7eb10]">
+                  <AlignLeft className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+                <textarea
+                  placeholder="Add description..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full bg-transparent text-[13px] placeholder:text-[13px] text-white/50 placeholder:text-white/50 focus:outline-none resize-none max-h-[20px]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <button
+                onClick={() => {
+                  setShowAddCard(false)
+                  setNewCardTitle("")
+                  setAssignedToIds([])
+                  setStartDate(Date.now())
+                  setDueDate(null)
+                  setPriority("")
+                  setDescription("")
+                  setSelectedTagIds([])
+                }}
+                className="text-[11px] text-white/50 hover:text-white/50 bg-[#1a1a24] p-2 rounded-[7px] font-bold cursor-pointer transition-colors px-2"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Your content here */}
+
+        <div ref={contentRef} className="flex flex-col gap-3">
+
+          <SortableContext items={cardsIds} strategy={verticalListSortingStrategy}>
+
+            {column.cards.map((card) => (
+              <KanbanCard key={card._id} connected={connected}
+                updateTaskAndCardCounts={updateTaskAndCardCounts} userId={userId} card={card} columnId={column._id} boardId={boardId} orgId={orgId} setColumns={setColumns} isReadOnly={isReadOnly} />
+            ))}
+          </SortableContext>
+        </div>
+
+        {/* Loading More Indicator */}
+        {isLoadingMore && (
+          <div className="flex items-center justify-center py-3">
+            <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+            <span className="ml-2 text-sm text-gray-500">Loading more cards...</span>
+          </div>
+        )}
+
+        {/* Add Card Button (at bottom) */}
+        {!showAddCard && (
+          <button
+            onClick={() => {
+              setShowAddAtBottom(true)
+              setShowAddCard(true)
+            }}
+            className="w-full flex items-center gap-2 bg-[#343439] text-white/50 cursor-pointer rounded px-3 py-2 transition text-sm disabled:opacity-60"
+            disabled={isReadOnly}
+          >
+            <Plus className="w-4 h-4" />
+            Add Task
+          </button>
+        )}
+
+        {/* Add Card Form at Bottom */}
+        {showAddCard && showAddAtBottom && (
+          <div
+            ref={addCardContainerRef}
+            className="bg-[#343439] border border-[#e5e7eb29] rounded-xl p-3 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200 mt-3"
+          >
+            <div className="flex justify-between items-start gap-2">
+              <textarea
+                placeholder="Task Name..."
+                value={newCardTitle}
+                onChange={(e) => setNewCardTitle(e.target.value)}
+                autoFocus
+                className="w-full px-0 py-1 bg-transparent text-sm placeholder:text-sm text-white/50 placeholder:text-white/50 rounded text-base font-medium focus:outline-none resize-none min-h-[40px]"
+                rows={1}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    handleAddCard()
+                  }
+                  if (e.key === "Escape") {
+                    setShowAddCard(false)
+                    setShowAddAtBottom(false)
+                  }
+                }}
+              />
+              <button
+                onClick={handleAddCard}
+                disabled={isCreating || !newCardTitle.trim()}
+                className="flex items-center gap-1.5 bg-[#1a1a24]  hover:bg-[#3E3E4A] text-white/50 px-3 py-1.5 rounded-md text-sm font-medium transition-all active:scale-95 disabled:opacity-40"
+              >
+                {isCreating ? "..." : "Save"}
+                <span className="text-[10px] opacity-60">↵</span>
+              </button>
+            </div>
+
+            <div className="space-y-0.5">
+              <AssigneePicker
+                assignedToIds={assignedToIds}
+                onSelect={(ids) => setAssignedToIds(ids)}
+              >
+                <button className="flex items-center gap-2.5 px-2 w-full py-2 rounded-md hover:bg-[#1a1a24] text-slate-400 hover:text-white/50 transition-colors group">
+                  <div className="p-1 px-1.5 rounded bg-[#1a1a24] group-hover:bg-[#2e2e3a] transition-colors border border-[#e5e7eb10]">
+                    <Users className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[13px] font-normal">
+                    {assignedToIds.length > 0 ? `${assignedToIds.length} Assignees` : "Add assignee"}
+                  </span>
+                </button>
+              </AssigneePicker>
+
+              <CustomDatePicker
+                startDate={startDate ? new Date(startDate) : undefined}
+                dueDate={dueDate ? new Date(dueDate) : undefined}
+                onSelect={(range) => {
+                  setStartDate(range.start ? range.start.getTime() : null);
+                  setDueDate(range.due ? range.due.getTime() : null);
+                }}
+              >
+                <button className={cn(
+                  "flex items-center gap-2.5 w-full px-2 py-2 rounded-md hover:bg-[#1a1a24] transition-colors group",
+                  dueDate ? "text-white/50 bg-[#1a1a24]" : "text-slate-400 hover:text-white/50"
+                )}>
+                  <div className="p-1 px-1.5 rounded bg-[#1a1a24] group-hover:bg-[#2e2e3a] transition-colors border border-[#e5e7eb10]">
+                    <Calendar className={cn("w-3.5 h-3.5", dueDate && "text-white/50")} />
+                  </div>
+                  <span className="text-[13px] font-normal truncate">
+                    {dueDate ? `${new Date(startDate).toLocaleDateString()} ${dueDate ? `- ${new Date(dueDate).toLocaleDateString()}` : ""}` : "Add dates"}
+                  </span>
+                </button>
+              </CustomDatePicker>
+
+              <PriorityPicker
+                priority={priority}
+                onSelect={(p) => setPriority(p)}
+              >
+                <button className={cn(
+                  "flex items-center gap-2.5 w-full px-2  py-2 rounded-md hover:bg-[#1a1a24] transition-colors group",
+                  priority ? "text-white/50 bg-[#1a1a24]" : "text-slate-400 hover:text-white/50"
+                )}>
+                  <div className="p-1 px-1.5 rounded bg-[#1a1a24] group-hover:bg-[#2e2e3a] transition-colors border border-[#e5e7eb10]">
+                    <Flag className={cn("w-3.5 h-3.5", priority === "urgent" ? "fill-red-500 text-red-500" : (priority === "high" ? "fill-amber-500 text-amber-500" : ""))} />
+                  </div>
+                  <span className="text-[13px] font-normal capitalize">
+                    {priority || "Add priority"}
+                  </span>
+                </button>
+              </PriorityPicker>
+
+              <TagPicker
+                boardId={workspaceId}
+                selectedTagIds={selectedTagIds}
+                onSelect={(ids) => setSelectedTagIds(ids)}
+                Idspace={Idspace}
+              >
+                <button className={cn(
+                  "flex items-center gap-2.5 w-full px-2  py-2 rounded-md hover:bg-[#1a1a24] transition-colors group",
+                  selectedTagIds.length > 0 ? "text-white/50 bg-[#1a1a24]" : "text-slate-400 hover:text-white/50"
+                )}>
+                  <div className="p-1 px-1.5 rounded bg-[#1a1a24] group-hover:bg-[#2e2e3a] transition-colors border border-[#e5e7eb10]">
+                    <TagIcon className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[13px] font-normal">
+                    {selectedTagIds.length > 0 ? `${selectedTagIds.length} Tags` : "Add tags"}
+                  </span>
+                </button>
+              </TagPicker>
+
+              <div className="flex gap-2.5 w-full px-2 py-2 rounded-md transition-colors group">
+                <div className="p-1 px-1.5 h-fit rounded bg-[#1a1a24] border border-[#e5e7eb10]">
+                  <AlignLeft className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+                <textarea
+                  placeholder="Add description..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full bg-transparent text-[13px] placeholder:text-[13px] text-white/50 placeholder:text-white/50 focus:outline-none resize-none max-h-[20px]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <button
+                onClick={() => {
+                  setShowAddCard(false)
+                  setShowAddAtBottom(false)
+                  setNewCardTitle("")
+                  setAssignedToIds([])
+                  setStartDate(Date.now())
+                  setDueDate(null)
+                  setPriority("")
+                  setDescription("")
+                  setSelectedTagIds([])
+                }}
+                className="text-[11px] text-white/50 hover:text-white/50 bg-[#1a1a24] p-2 rounded-[7px] font-bold cursor-pointer transition-colors px-2"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+
+      <Dialog open={showExpiredDialog} onOpenChange={setShowExpiredDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Session Expired</DialogTitle>
+            <DialogDescription>
+              Your session has expired. Please log in again to continue.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => router.push("/login")}>
+              Login
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div >
+  )
+}

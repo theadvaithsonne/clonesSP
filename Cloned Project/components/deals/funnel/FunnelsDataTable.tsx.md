@@ -1,0 +1,49 @@
+# `components/deals/funnel/FunnelsDataTable.tsx`
+
+> React component `FunnelsDataTable`.
+
+**Kind:** React component · **Lines:** 208 · **Directive:** `"use client"`
+
+<!-- docgen:auto -->
+
+## Purpose
+The source has no header comment; what follows is read straight from its code.
+
+> **Auto-generated overview.** The tables below were extracted from the source by a script (exports, endpoints, events, data access, dependencies). A written walkthrough of the logic has not been added yet.
+
+## Overview (auto-extracted)
+
+### Composition
+
+**Renders:** `Dash`×4 (components/ui/data-table/cells.tsx), `Avatar` (components/ui/data-table/cells.tsx), `PersonBlock` (components/ui/data-table/cells.tsx), `DataTable` (components/ui/data-table/DataTable.tsx)
+
+### Props
+
+- **`FunnelsDataTable`**: `rows: any[]`, `loading?: boolean`, `emptyLabel?: string`, `sort: SortState | null`, `onSortChange: (next: SortState) => void`, `getRowId: (funnel: any) => string`, `onRowClick: (funnel: any) => void`, `selectedIds: Set<string>`, `allSelected: boolean`, `someSelected: boolean`, `onToggleRow: (id: string) => void`, `onToggleAll: () => void`, `getFunnelName: (funnel: any) => string`, `getOwner: (funnel: any) => FunnelOwner`, `getActiveLeads: (funnel: any) => number`, `getStatus: (funnel: any) => string`, `getLastUpdated: (funnel: any) => string`, `renderStages: (funnel: any) => ReactNode`, `renderActions: (funnel: any) => ReactNode`, `footerTotals?: DataTableTotal[]`, `pagination?: PaginationProps`
+
+**Hooks used:** `useMemo`
+
+## Exports
+
+| Name | Kind | Signature / value | Line |
+|---|---|---|---|
+| `FunnelOwner` | type |  | 13 |
+| `FunnelsDataTableProps` | type |  | 15 |
+| `FunnelsDataTable` | component | `FunnelsDataTable(props: FunnelsDataTableProps)` | 46 |
+
+## Interfaces
+
+None detected: no endpoints, events, data access or environment reads were found.
+
+## Dependencies
+
+- **Internal:**
+  - `components/ui/data-table/DataTable.tsx` — `DataTable`
+  - `components/ui/data-table/cells.tsx` — `Avatar`, `Dash`, `PersonBlock`
+  - `components/ui/data-table/types.ts` — `ColumnDef`, `DataTableTotal`, `PaginationProps`, `SortState`, `(types only)`
+- **Packages:**
+  - `react` — `useMemo`, `ReactNode`
+
+## Used by
+
+- `app/(dashboard)/deals/funnel/page.tsx`

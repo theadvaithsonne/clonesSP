@@ -1,0 +1,352 @@
+```
+{
+    "status": true,
+    "data": {
+        "_id": "6a32656a7de72e0d13b55c18",
+        "userId": "69ca9eea54be0a283b51ffd3",
+        "workspaceId": "6a1ef7266fb70c812a823a1e",
+        "weekStart": 1781375400000,
+        "weekEnd": 1781980199999,
+        "timeZone": "Asia/Calcutta",
+        "draftTaskIds": [],
+        "approvalTaskIds": [],
+        "currentStatus": "draft",
+        "status": "active",
+        "taskEntries": [
+            {
+                "taskId": "6a1ef78b6fb70c812a823a9b",
+                "monday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "tuesday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "wednesday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "thursday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "friday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "saturday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "sunday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                }
+            },
+            {
+                "taskId": "6a1f0adae2c74792ffd3d01e",
+                "monday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "tuesday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "wednesday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "thursday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "friday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "saturday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                },
+                "sunday": {
+                    "billable": 0,
+                    "nonBillable": 0
+                }
+            }
+        ],
+        "dailyTotals": {
+            "monday": {
+                "billable": 0,
+                "nonBillable": 0
+            },
+            "tuesday": {
+                "billable": 0,
+                "nonBillable": 0
+            },
+            "wednesday": {
+                "billable": 0,
+                "nonBillable": 0
+            },
+            "thursday": {
+                "billable": 0,
+                "nonBillable": 0
+            },
+            "friday": {
+                "billable": 0,
+                "nonBillable": 0
+            },
+            "saturday": {
+                "billable": 0,
+                "nonBillable": 0
+            },
+            "sunday": {
+                "billable": 0,
+                "nonBillable": 0
+            }
+        },
+        "createdAt": "2026-06-17T09:14:18.558Z",
+        "updatedAt": "2026-06-17T09:36:13.851Z",
+        "__v": 0,
+        "taskCount": 2,
+        "paginatedTaskEntries": [
+            {
+                "taskId": "6a1ef78b6fb70c812a823a9b",
+                "taskDetails": {
+                    "_id": "6a1ef78b6fb70c812a823a9b",
+                    "title": "test task 3",
+                    "description": "",
+                    "priority": "normal",
+                    "tags": [],
+                    "assignedToIds": [
+                        "69ca9eea54be0a283b51ffd3"
+                    ],
+                    "spaceId": "6a1ef7496fb70c812a823a6a",
+                    "workspaceId": "6a1ef7266fb70c812a823a1e",
+                    "roomId": "6a1ef7756fb70c812a823a7e",
+                    "stageId": "6a1ef7756fb70c812a823a80",
+                    "userId": "69ca9eea54be0a283b51ffd3",
+                    "startDate": null,
+                    "dueDate": 1780424999999,
+                    "isOverDue": false,
+                    "isCompleted": false,
+                    "status": "active",
+                    "createdAt": "2026-06-02T15:32:27.611Z",
+                    "updatedAt": "2026-06-17T10:25:28.503Z",
+                    "__v": 0,
+                    "trackTime": 42,
+                    "stageData": {
+                        "_id": "6a1ef7756fb70c812a823a80",
+                        "name": "Backlog",
+                        "color": "#ddddd7",
+                        "stageType": "tostart",
+                        "type": "default",
+                        "orderId": 1,
+                        "roomId": "6a1ef7756fb70c812a823a7e",
+                        "userId": "69ca9eea54be0a283b51ffd3",
+                        "isPrivate": false,
+                        "taskCount": 4,
+                        "status": "active",
+                        "__v": 0,
+                        "createdAt": "2026-06-02T15:32:05.939Z",
+                        "updatedAt": "2026-06-02T16:54:50.093Z"
+                    },
+                    "roomData": {
+                        "_id": "6a1ef7756fb70c812a823a7e",
+                        "name": "testroom roop test2",
+                        "description": "",
+                        "orgId": "68f8ee6dc45c74df03e69211",
+                        "userId": "69ca9eea54be0a283b51ffd3",
+                        "spaceId": "6a1ef7496fb70c812a823a6a",
+                        "workspaceId": "6a1ef7266fb70c812a823a1e",
+                        "color": "#6366f1",
+                        "bgImage": "",
+                        "taskCount": 4,
+                        "isPrivate": true,
+                        "status": "active",
+                        "createdAt": "2026-06-02T15:32:05.924Z",
+                        "updatedAt": "2026-06-02T16:54:50.087Z",
+                        "__v": 0
+                    },
+                    "spaceData": {
+                        "_id": "6a1ef7496fb70c812a823a6a",
+                        "name": "rooptest2space",
+                        "description": "",
+                        "color": "#6366f1",
+                        "orgId": "68f8ee6dc45c74df03e69211",
+                        "spaceCode": "ROO",
+                        "userId": "69ca9eea54be0a283b51ffd3",
+                        "workspaceId": "6a1ef7266fb70c812a823a1e",
+                        "status": "active",
+                        "createdAt": "2026-06-02T15:31:21.731Z",
+                        "updatedAt": "2026-06-02T15:31:21.731Z",
+                        "__v": 0
+                    }
+                },
+                "monday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "tuesday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "wednesday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "thursday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "friday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "saturday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "sunday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                }
+            },
+            {
+                "taskId": "6a1f0adae2c74792ffd3d01e",
+                "taskDetails": {
+                    "_id": "6a1f0adae2c74792ffd3d01e",
+                    "title": "test task4",
+                    "description": "",
+                    "priority": "normal",
+                    "tags": [],
+                    "assignedToIds": [],
+                    "spaceId": "6a1ef7496fb70c812a823a6a",
+                    "workspaceId": "6a1ef7266fb70c812a823a1e",
+                    "roomId": "6a1ef7756fb70c812a823a7e",
+                    "stageId": "6a1ef7756fb70c812a823a80",
+                    "userId": "69ca9eea54be0a283b51ffd3",
+                    "startDate": null,
+                    "dueDate": 1781029799999,
+                    "isOverDue": false,
+                    "isCompleted": false,
+                    "status": "active",
+                    "createdAt": "2026-06-02T16:54:50.082Z",
+                    "updatedAt": "2026-06-10T13:59:01.408Z",
+                    "__v": 0,
+                    "subTaskCount": 1,
+                    "activeTimerDetails": {
+                        "_id": "6a326a4fcdbf2260dccf5763",
+                        "userId": "69ca9eea54be0a283b51ffd3",
+                        "orgId": "68f8ee6dc45c74df03e69211",
+                        "comment": "test timelog active",
+                        "tags": [],
+                        "taskId": "6a1f0adae2c74792ffd3d01e",
+                        "roomId": "6a1ef7756fb70c812a823a7e",
+                        "isBillable": false,
+                        "startTime": 1781688912783,
+                        "logStatus": "tracked",
+                        "timesheetLogId": null,
+                        "status": "active",
+                        "createdAt": "2026-06-17T09:35:11.383Z",
+                        "updatedAt": "2026-06-17T09:35:11.383Z",
+                        "__v": 0,
+                        "dayOfWeek": 4,
+                        "isTimerActive": true
+                    },
+                    "stageData": {
+                        "_id": "6a1ef7756fb70c812a823a80",
+                        "name": "Backlog",
+                        "color": "#ddddd7",
+                        "stageType": "tostart",
+                        "type": "default",
+                        "orderId": 1,
+                        "roomId": "6a1ef7756fb70c812a823a7e",
+                        "userId": "69ca9eea54be0a283b51ffd3",
+                        "isPrivate": false,
+                        "taskCount": 4,
+                        "status": "active",
+                        "__v": 0,
+                        "createdAt": "2026-06-02T15:32:05.939Z",
+                        "updatedAt": "2026-06-02T16:54:50.093Z"
+                    },
+                    "roomData": {
+                        "_id": "6a1ef7756fb70c812a823a7e",
+                        "name": "testroom roop test2",
+                        "description": "",
+                        "orgId": "68f8ee6dc45c74df03e69211",
+                        "userId": "69ca9eea54be0a283b51ffd3",
+                        "spaceId": "6a1ef7496fb70c812a823a6a",
+                        "workspaceId": "6a1ef7266fb70c812a823a1e",
+                        "color": "#6366f1",
+                        "bgImage": "",
+                        "taskCount": 4,
+                        "isPrivate": true,
+                        "status": "active",
+                        "createdAt": "2026-06-02T15:32:05.924Z",
+                        "updatedAt": "2026-06-02T16:54:50.087Z",
+                        "__v": 0
+                    },
+                    "spaceData": {
+                        "_id": "6a1ef7496fb70c812a823a6a",
+                        "name": "rooptest2space",
+                        "description": "",
+                        "color": "#6366f1",
+                        "orgId": "68f8ee6dc45c74df03e69211",
+                        "spaceCode": "ROO",
+                        "userId": "69ca9eea54be0a283b51ffd3",
+                        "workspaceId": "6a1ef7266fb70c812a823a1e",
+                        "status": "active",
+                        "createdAt": "2026-06-02T15:31:21.731Z",
+                        "updatedAt": "2026-06-02T15:31:21.731Z",
+                        "__v": 0
+                    }
+                },
+                "monday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "tuesday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "wednesday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": true
+                },
+                "thursday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "friday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "saturday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                },
+                "sunday": {
+                    "billable": 0,
+                    "nonBillable": 0,
+                    "isTimerRunning": false
+                }
+            }
+        ]
+    }
+}
+```

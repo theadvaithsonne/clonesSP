@@ -1,0 +1,6 @@
+# Temporary: keeps code search out of dependencies and generated docs while
+# the per-file documentation is written. Delete when done.
+node_modules/
+.next/
+dist/
+*.md

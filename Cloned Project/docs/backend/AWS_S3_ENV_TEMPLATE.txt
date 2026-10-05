@@ -1,0 +1,20 @@
+# Add these environment variables to your .env file in the backend
+
+# Resend Email Configuration
+RESEND_API_KEY=your-resend-api-key
+RESEND_FROM=Roam <onboarding@resend.dev>
+# Optional: Update RESEND_FROM with your verified domain
+# Example: YourApp <noreply@yourdomain.com>
+
+# AWS S3 Configuration for Cabinet System
+AWS_S3_REGION=your-aws-region
+AWS_S3_BUCKET=your-s3-bucket-name
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+AWS_S3_ENDPOINT=https://your-s3-endpoint.com
+AWS_S3_FORCE_PATH_STYLE=false
+
+# Separate PRIVATE bucket for office KYC documents (Block all public access ON).
+# Only services/orgKycStorage.ts reads this; every other upload keeps using
+# AWS_S3_BUCKET above. Reads happen through presigned URLs that expire in 10 min.
+AWS_S3_KYC_BUCKET=garage-app-kyc

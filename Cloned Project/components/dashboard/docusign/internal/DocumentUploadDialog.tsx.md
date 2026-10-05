@@ -1,0 +1,57 @@
+# `components/dashboard/docusign/internal/DocumentUploadDialog.tsx`
+
+> React component `DocumentUploadDialog`.
+
+**Kind:** React component · **Lines:** 155 · **Directive:** `"use client"`
+
+<!-- docgen:auto -->
+
+## Purpose
+The source has no header comment; what follows is read straight from its code.
+
+> **Auto-generated overview.** The tables below were extracted from the source by a script (exports, endpoints, events, data access, dependencies). A written walkthrough of the logic has not been added yet.
+
+## Overview (auto-extracted)
+
+### Composition
+
+**Renders:** `Label`×2 (components/ui/label.tsx), `Button`×2 (components/ui/button.tsx), `Dialog` (components/ui/dialog.tsx), `DialogContent` (components/ui/dialog.tsx), `DialogHeader` (components/ui/dialog.tsx), `DialogTitle` (components/ui/dialog.tsx), `PdfFilesPicker` (components/dashboard/docusign/shared/PdfFilesPicker.tsx), `Textarea` (components/ui/textarea.tsx), `FolderSelect` (components/dashboard/docusign/shared/FolderSelect.tsx), `Loader2` (lucide-react)
+
+### Props
+
+- **`DocumentUploadDialog`**: `open: boolean`, `onClose: () => void`, `onCreated: (document: DsDocument) => void`
+
+**Hooks used:** `useState`×5, `useDocusignStore` (store/docusign/docusignStore.ts), `useEffect`
+
+## Exports
+
+| Name | Kind | Signature / value | Line |
+|---|---|---|---|
+| `DocumentUploadDialog` | component | `DocumentUploadDialog({ open, onClose, onCreated }: DocumentUploadDialogProps)` | 33 |
+
+## Interfaces
+
+None detected: no endpoints, events, data access or environment reads were found.
+
+## Dependencies
+
+- **Internal:**
+  - `components/ui/dialog.tsx` — `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`
+  - `components/ui/button.tsx` — `Button`
+  - `components/ui/label.tsx` — `Label`
+  - `components/ui/textarea.tsx` — `Textarea`
+  - `lib/docusign/internal-api.ts` — `DsDocument`, `(types only)`
+  - `lib/docusign/internal-api.ts` — `createDocument`, `createDocumentBundle`
+  - `store/docusign/docusignStore.ts` — `useDocusignStore`
+  - `lib/docusign/access.ts` — `isDocusignAdminUser`, `senderRoleLabel`
+  - `components/dashboard/docusign/shared/editorTokens.ts` — `BTN_PRIMARY`, `BTN_SECONDARY`, `HEADING`, `LABEL_MUTED`, `SUBTITLE`, `TEXTAREA`
+  - `components/dashboard/docusign/shared/FolderSelect.tsx` — `FolderSelect`
+  - `components/dashboard/docusign/shared/PdfFilesPicker.tsx` — `PdfFilesPicker`, `pdfItemsProblem`, `uploadPdfItems`, `PdfItem`
+- **Packages:**
+  - `react` — `useEffect`, `useState`
+  - `sonner` — `toast`
+  - `lucide-react` — `Loader2`
+
+## Used by
+
+- `components/dashboard/docusign/DocusignPage.tsx`

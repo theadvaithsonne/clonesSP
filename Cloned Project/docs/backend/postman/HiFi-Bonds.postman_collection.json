@@ -1,0 +1,703 @@
+{
+  "info": {
+    "name": "HiFi Bonds",
+    "description": "Fixed-income bond instruments for CRYPTO OFFICES.\n\nFull reference: HIFI_BONDS_APIS.md. Design rationale: HIFI_BONDS_PLAN.md.\n\nSETUP\n  baseUrl \u2014 https://test.garage.app or https://api.my.garage.app\n  jwt     \u2014 same platform JWT as every other Garage API\n  orgId   \u2014 a CRYPTO office (officeCreatedFromCryptobrand = true).\n            Any other org returns 403.\n\nRun the Founder folder 1 -> 2 -> 3, then Investor 1 -> 2. The test scripts chain instrumentId, acknowledgedOutflow and holdingId automatically.\n\nMONEY: requests take human decimals ('1000', '0.05'); responses carry both `atomic` (integer smallest-unit string, authoritative) and `display` (human). A crypto unit price must be exactly representable to 2dp \u2014 0.25 BTC is fine, 0.005 ETH is rejected, because the invoice layer stores 1/100ths of a unit and would otherwise misstate the receipt.\n\nNO ENVIRONMENT VARIABLES are required by this feature.\n\nPUBLIC BOND PAGE: after 'Purchase', {{bondHash}} is set \u2014 run 'Public \u2014 Bond page' with no login. See HIFI_BONDS_PUBLIC_APIS.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://test.garage.app",
+      "type": "string",
+      "description": "Test: https://test.garage.app | Prod: https://api.my.garage.app"
+    },
+    {
+      "key": "jwt",
+      "value": "",
+      "type": "string",
+      "description": "Bearer JWT"
+    },
+    {
+      "key": "orgId",
+      "value": "",
+      "type": "string",
+      "description": "MUST be a crypto office, else every route 403s"
+    },
+    {
+      "key": "instrumentId",
+      "value": "",
+      "type": "string",
+      "description": "Set by 'Create draft'"
+    },
+    {
+      "key": "holdingId",
+      "value": "",
+      "type": "string",
+      "description": "Set by 'Purchase'"
+    },
+    {
+      "key": "acknowledgedOutflow",
+      "value": "",
+      "type": "string",
+      "description": "Set by 'Preview'"
+    },
+    {
+      "key": "units",
+      "value": "10",
+      "type": "string"
+    },
+    {
+      "key": "bondHash",
+      "value": "",
+      "type": "string",
+      "description": "Set by 'Purchase' \u2014 the bond's public 12-digit id"
+    }
+  ],
+  "item": [
+    {
+      "name": "Founder \u2014 Instruments",
+      "description": "Create, price and publish a bond. Crypto-office founders only.",
+      "item": [
+        {
+          "name": "1. Preview terms (obligation panel)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments/preview",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments",
+                "preview"
+              ]
+            },
+            "description": "No write. Call on every builder edit.\n\nRead `display.sellerNetPerUnit`: on these inputs the founder takes Rs1,000 per unit and pays out Rs1,919 \u2014 a net LOSS of Rs919/unit. That is correct arithmetic: 1% DAILY is 360%/yr. This endpoint exists so nobody publishes that by accident.\n\nReturns `issues` instead of a 400 so the builder can show problems live.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orgId\": \"{{orgId}}\",\n  \"name\": \"90-day daily income bond\",\n  \"description\": \"Pays 1% of unit price every day for 90 days.\",\n  \"unitPrice\": \"1000\",\n  \"currency\": \"INR\",\n  \"durationDays\": 90,\n  \"payoutFrequency\": \"daily\",\n  \"ratePerPayoutPeriod\": \"1\",\n  \"totalUnits\": 500,\n  \"minUnits\": 1,\n  \"commissionBasis\": \"both\",\n  \"principalCommissionRate\": \"1\",\n  \"payoutCommissionRate\": \"1\",\n  \"combPlanId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('publishable', () => pm.expect(j.publishable).to.be.true);",
+                  "if (j.display) {",
+                  "  pm.environment.set('acknowledgedOutflow', j.display.totalOutflowPerUnit);",
+                  "  console.log('Total outflow per unit:', j.display.totalOutflowPerUnit,",
+                  "              '| seller net:', j.display.sellerNetPerUnit);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Create draft",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments"
+              ]
+            },
+            "description": "Creates a `draft`. Returns 400 { issues } if invalid.\n\nCrypto offices only \u2014 a non-crypto org gets 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orgId\": \"{{orgId}}\",\n  \"name\": \"90-day daily income bond\",\n  \"description\": \"Pays 1% of unit price every day for 90 days.\",\n  \"unitPrice\": \"1000\",\n  \"currency\": \"INR\",\n  \"durationDays\": 90,\n  \"payoutFrequency\": \"daily\",\n  \"ratePerPayoutPeriod\": \"1\",\n  \"totalUnits\": 500,\n  \"minUnits\": 1,\n  \"commissionBasis\": \"both\",\n  \"principalCommissionRate\": \"1\",\n  \"payoutCommissionRate\": \"1\",\n  \"combPlanId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.instrument) pm.environment.set('instrumentId', j.instrument._id);",
+                  "pm.test('created', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Publish (requires exact acknowledgement)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments/{{instrumentId}}/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments",
+                "{{instrumentId}}",
+                "publish"
+              ]
+            },
+            "description": "`acknowledgedOutflow` MUST equal the `totalOutflowPerUnit` from preview, or you get 400 ACK_MISMATCH. This is the spec's hard confirmation \u2014 not a generic 'I agree' \u2014 and it records which number the founder actually saw.\n\nStep 1's test script sets {{acknowledgedOutflow}} for you.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acknowledgedOutflow\": \"{{acknowledgedOutflow}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List instruments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments?orgId={{orgId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                }
+              ]
+            },
+            "description": "Founders see everything including drafts. Non-founders only see `published` / `fully_subscribed`."
+          }
+        },
+        {
+          "name": "Get instrument",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments/{{instrumentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments",
+                "{{instrumentId}}"
+              ]
+            },
+            "description": "Adds `unitsRemaining`."
+          }
+        },
+        {
+          "name": "Edit draft",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments/{{instrumentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments",
+                "{{instrumentId}}"
+              ]
+            },
+            "description": "DRAFTS ONLY. A published bond returns 409 NOT_EDITABLE \u2014 investors hold positions priced on its current terms. Editing voids any prior acknowledgement.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orgId\": \"{{orgId}}\",\n  \"name\": \"90-day daily income bond (revised)\",\n  \"description\": \"Pays 1% of unit price every day for 90 days.\",\n  \"unitPrice\": \"1000\",\n  \"currency\": \"INR\",\n  \"durationDays\": 90,\n  \"payoutFrequency\": \"daily\",\n  \"ratePerPayoutPeriod\": \"1\",\n  \"totalUnits\": 500,\n  \"minUnits\": 1,\n  \"commissionBasis\": \"both\",\n  \"principalCommissionRate\": \"1\",\n  \"payoutCommissionRate\": \"1\",\n  \"combPlanId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Close to new purchases",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments/{{instrumentId}}/close",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments",
+                "{{instrumentId}}",
+                "close"
+              ]
+            },
+            "description": "Stops new purchases. EXISTING HOLDINGS KEEP PAYING OUT.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Investor \u2014 Buy & hold",
+      "description": "Quote, buy, track, redeem.",
+      "item": [
+        {
+          "name": "1. Quote",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments/{{instrumentId}}/quote?units={{units}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments",
+                "{{instrumentId}}",
+                "quote"
+              ],
+              "query": [
+                {
+                  "key": "units",
+                  "value": "{{units}}"
+                }
+              ]
+            },
+            "description": "Price and full return projection for N units."
+          }
+        },
+        {
+          "name": "2. Purchase (one-click, no checkout)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments/{{instrumentId}}/purchase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments",
+                "{{instrumentId}}",
+                "purchase"
+              ]
+            },
+            "description": "ONE request does everything: mints an invoice, debits the buyer's wallet, credits the founder, creates the holding, pre-creates every payout event, and distributes principal commission. Returns an ALREADY-PAID invoice as a receipt.\n\nThe buyer's wallet must be in the bond's currency. Crypto-office members get USD/INR/ETH/BTC/USDT wallets automatically.\n\nErrors: NOT_PURCHASABLE 409, BELOW_MIN_UNITS 400, INSUFFICIENT_SUPPLY 409, INSUFFICIENT_BALANCE 400, DEBIT_FAILED 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"units\": \"{{units}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.bondHash) pm.environment.set('bondHash', j.bondHash);",
+                  "if (j.holding) pm.environment.set('holdingId', j.holding._id);",
+                  "pm.test('invoice is already paid', () =>",
+                  "  pm.expect(j.invoice && j.invoice.status).to.eql('paid'));",
+                  "pm.test('every payout was scheduled up front', () =>",
+                  "  pm.expect(j.fulfilment.payoutEventsCreated).to.be.above(0));",
+                  "pm.test('receipt carries the bond hash', () => pm.expect(j.bondHash).to.match(/^[1-9]\\d{11}$/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My holdings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/holdings?orgId={{orgId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "holdings"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                }
+              ]
+            },
+            "description": "Purchase history. Every row keeps its original fields and gains `bondHash`, `publicPath` and `bond` \u2014 the same figures as the public bond page, built by the same code."
+          }
+        },
+        {
+          "name": "I'm the owner (by bond hash)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/holdings/by-hash/{{bondHash}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "holdings",
+                "by-hash",
+                "{{bondHash}}"
+              ]
+            },
+            "description": "LOGIN REQUIRED. isOwner true -> also returns holdingId (for redeem), invoice and canRedeem. Anyone else gets isOwner:false and the public view only."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('has isOwner', () => pm.expect(j).to.have.property('isOwner'));",
+                  "if (j.isOwner) pm.environment.set('holdingId', j.holdingId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Holding + full payout schedule",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/holdings/{{holdingId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "holdings",
+                "{{holdingId}}"
+              ]
+            },
+            "description": "Returns the holding, a summary, and every scheduled payout with its `status`, `attempts`, `lastError` and `paidAt`."
+          }
+        },
+        {
+          "name": "Redeem principal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/holdings/{{holdingId}}/redeem",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "holdings",
+                "{{holdingId}}",
+                "redeem"
+              ]
+            },
+            "description": "Only at/after maturity, and only once all payouts have cleared.\n\n409 `not_matured` \u2014 early redemption is NOT supported.\n409 `payouts_outstanding` \u2014 interest still owed.\n409 `insufficient_founder_balance` \u2014 issuer cannot cover it.\n\nRedemption happens automatically at maturity, so this is a convenience.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Founder \u2014 Monitoring",
+      "description": "Whether the issuer can actually cover what they owe.",
+      "item": [
+        {
+          "name": "Funding obligations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/instruments/{{instrumentId}}/obligations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "instruments",
+                "{{instrumentId}}",
+                "obligations"
+              ]
+            },
+            "description": "PRINCIPAL IS NOT ESCROWED. It lands in the founder's spendable wallet, so they can spend money they owe investors. This endpoint is the warning: `funded: false` means payouts will start failing, and `shortfallNext30Days` is how much to top up."
+          }
+        },
+        {
+          "name": "Org ledger",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bonds/organizations/{{orgId}}/ledger?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bonds",
+                "organizations",
+                "{{orgId}}",
+                "ledger"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Kinds: purchase_credit, principal_commission, payout_credit, payout_commission, redemption_credit, reversal."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public \u2014 Bond page (no login)",
+      "description": "Look up any purchased bond by its 12-digit bond hash. See HIFI_BONDS_PUBLIC_APIS.md.",
+      "item": [
+        {
+          "name": "Public bond page",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/public/bonds/{{bondHash}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "bonds",
+                "{{bondHash}}"
+              ]
+            },
+            "description": "NO LOGIN. Value, interest paid / remaining, payout log, terms, earning power, net ROI.\n\nNever exposes the owner, invoice, wallet ids or the issuer's commission. Rate limited to 60/min per IP (429 RATE_LIMITED). Unpaid/cancelled bonds return 404.\n\nQuery: logLimit (default 50, max 200), logOffset.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('no owner identity exposed', () => pm.expect(pm.response.text()).to.not.match(/\"[a-zA-Z]*(buyer|invoice|wallet|email|userId|commission)[a-zA-Z]*\"\\s*:/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public bond page \u2014 page 2 of the log",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/public/bonds/{{bondHash}}?logLimit=20&logOffset=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "bonds",
+                "{{bondHash}}"
+              ],
+              "query": [
+                {
+                  "key": "logLimit",
+                  "value": "20"
+                },
+                {
+                  "key": "logOffset",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Paging through a long interest log (a daily bond can have thousands of payouts).",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
